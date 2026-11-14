@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.strict.json && tsc --noEmit -p worker",
     "preview": "npm run build && wrangler dev",
     "deploy:qa": "scripts/deploy.sh qa",
-    "deploy:prod": "scripts/deploy.sh production"
+    "deploy:prod": "scripts/deploy.sh production",
+    "deploy:dry:qa": "DRY_RUN=1 scripts/deploy.sh qa",
+    "deploy:dry:prod": "DRY_RUN=1 scripts/deploy.sh production"
   },
   "dependencies": {
     "next": "^16.2.4",

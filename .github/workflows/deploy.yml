@@ -1,12 +1,10 @@
 name: Deploy
 
-# develop branch  → QA        (automatic)
-# v1.2.3 tag      → Production (automatic, needs approval if the 'production' environment is protected)
-# Manual run      → any branch or tag → QA, or a v* tag → Production
+# The ONLY way to deploy. Manual run: Actions → Deploy → Run workflow.
+#   UAT (qa)    → any branch or any tag
+#   production  → a release tag vMAJOR.MINOR.PATCH only
+# All configuration comes from the GitHub *Environment* of the same name (qa / production).
 on:
-  push:
-    branches: [develop]
-    tags: ['v*.*.*']
   workflow_dispatch:
     inputs:
       environment:
@@ -15,23 +13,38 @@ on:
         options: [qa, production]
         default: qa
       ref:
-        description: Branch or tag to deploy (production requires a v* tag)
+        description: Branch or tag to deploy (production requires a vX.Y.Z tag)
         required: true
-        default: develop
 
 concurrency:
-  group: deploy-${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}
+  group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}
+    environment: ${{ inputs.environment }}   # holds the secrets/variables below; add required reviewers on 'production'
+    env:
+      TARGET: ${{ inputs.environment }}
+      REF: ${{ inputs.ref }}
     steps:
+      - name: Validate ref for target
+        run: |
+          if [ "$TARGET" = production ] && ! [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Production deploys only from a release tag like v1.2.0 (got '$REF')"; exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0          # tags needed for version labels
+
+      - name: Production ref must really be a tag
+        if: inputs.environment == 'production'
+        run: git show-ref --verify --quiet "refs/tags/$REF" || { echo "::error::'$REF' is not a tag"; exit 1; }
 
       - uses: actions/setup-node@v4
         with:
@@ -42,17 +55,33 @@ jobs:
 
       - name: Deploy
         env:
+          CI_DEPLOY: "1"
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}   # per-environment secret
-          GITHUB_REF_NAME: ${{ github.event.inputs.ref || github.ref_name }}
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+          GITHUB_REF_NAME: ${{ inputs.ref }}
+          # build-time flags (baked into the browser bundle)
+          NEXT_PUBLIC_ENCRYPT_API: ${{ vars.ENCRYPT_API }}
+          NEXT_PUBLIC_API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY }}
+          NEXT_PUBLIC_ENABLE_LOGS: ${{ vars.ENABLE_LOGS }}
+        run: scripts/deploy.sh "$TARGET"
+
+      # Secrets are set AFTER deploy (a plain var of the same name must be gone first) and are idempotent.
+      - name: Set Worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY }}
         run: |
-          TARGET="${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}"
-          scripts/deploy.sh "$TARGET"
+          printf '%s' "$BACKEND_URL" | npx wrangler secret put BACKEND_URL --env "$TARGET"
+          if [ -n "$API_ENCRYPTION_KEY" ]; then
+            printf '%s' "$API_ENCRYPTION_KEY" | npx wrangler secret put API_ENCRYPTION_KEY --env "$TARGET"
+          fi
 
       - name: Smoke test
+        env:
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
         run: |
-          TARGET="${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}"
-          HOST="${{ secrets.DEPLOY_DOMAIN }}"
           sleep 10
-          curl -fsS "https://$HOST/api/health" | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS "https://$DEPLOY_DOMAIN/api/health" | tee /dev/stderr | grep -q '"backendConfigured":true'

@@ -25,5 +25,7 @@ To serve on your local network (phones/other laptops), see **docs/COMMANDS.md â†
 
 See **docs/DEPLOYMENT.md**. Copy-paste commands: **docs/COMMANDS.md**.
 
-    npm run deploy:qa      # current branch â†’ QA
-    npm run deploy:prod    # only from a v* release tag
+    gh workflow run deploy.yml -f environment=qa -f ref=<branch-or-tag>      # UAT: any branch/tag
+    gh workflow run deploy.yml -f environment=production -f ref=v1.2.0       # PROD: vX.Y.Z tag only
+
+Deploys run only from GitHub Actions (see docs/COMMANDS.md section 3 for the one-time environment setup).

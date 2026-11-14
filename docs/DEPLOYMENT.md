@@ -27,13 +27,13 @@ The label is recorded in three places:
 ## Release flow
 
 ```bash
-# QA: deploy whatever you're testing
-git push origin develop                    # CI deploys develop → QA
-npm run deploy:qa                          # or from your laptop, current branch → QA
+# Deploys are manual and run only from GitHub Actions (Deploy workflow).
+# QA: any branch or tag
+gh workflow run deploy.yml -f environment=qa -f ref=develop
 
-# Production: cut a release tag
-git tag v1.2.0 && git push origin v1.2.0   # CI deploys v1.2.0 → Production
-git checkout v1.2.0 && npm run deploy:prod # or from your laptop
+# Production: cut a release tag, then deploy that tag
+git tag v1.2.0 && git push origin v1.2.0
+gh workflow run deploy.yml -f environment=production -f ref=v1.2.0
 
 # Same tag on QA first (recommended)
 # GitHub → Actions → Deploy → Run workflow → environment: qa, ref: v1.2.0

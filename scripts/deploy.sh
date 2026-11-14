@@ -9,6 +9,12 @@
 #                 DRY_RUN=1     to build and validate without deploying.
 set -euo pipefail
 
+# Deploys run ONLY from GitHub Actions (.github/workflows/deploy.yml). Local dry runs are allowed.
+if [[ -z "${GITHUB_ACTIONS:-}" && -z "${DRY_RUN:-}" ]]; then
+  echo "✖ Deploys run only from GitHub Actions: Actions → Deploy → Run workflow (see docs/COMMANDS.md)." >&2
+  exit 1
+fi
+
 ENVIRONMENT="${1:-}"
 EXPECTED_TAG="${2:-}"
 case "$ENVIRONMENT" in qa|production) ;; *) echo "usage: $0 <qa|production> [tag]" >&2; exit 2 ;; esac
@@ -48,9 +54,9 @@ VERSION="${TAG:-${BRANCH//\//-}@${SHORT_SHA}}"
 
 echo "▶ Deploying $VERSION to $ENVIRONMENT"
 
-# Per-environment flags (encryption, console logging) from .env.<environment>.
-[[ -f ".env.$ENVIRONMENT" ]] || { echo "✖ Missing .env.$ENVIRONMENT (copy .env.example)." >&2; exit 1; }
-set -a; source ".env.$ENVIRONMENT"; set +a
+# Per-environment flags (encryption, console logging).
+# In CI these come from GitHub Environment secrets/variables; locally (dry run) from the file.
+if [[ -f ".env.$ENVIRONMENT" && -z "${GITHUB_ACTIONS:-}" ]]; then set -a; source ".env.$ENVIRONMENT"; set +a; fi
 
 export NEXT_PUBLIC_APP_ENV="$ENVIRONMENT"
 export NEXT_PUBLIC_APP_VERSION="$VERSION"

@@ -4,10 +4,8 @@ All commands run from the repo root: `cd bikri-kendra-cloudflare`.
 UAT = the `qa` environment → https://<qa-domain>
 PROD = the `production` environment → https://<prod-domain>
 
-Domains are not committed. Create `.deploy.env` once (gitignored; copy `.deploy.env.example`)
-with `DEPLOY_DOMAIN_PRODUCTION` and `DEPLOY_DOMAIN_QA`; `scripts/deploy.sh` passes them as
-`wrangler deploy --domain`. In GitHub, add a `DEPLOY_DOMAIN` secret to each environment
-(`qa`, `production`) alongside `CLOUDFLARE_API_TOKEN`.
+Domains are not committed: in CI the `DEPLOY_DOMAIN` environment secret is passed as
+`wrangler deploy --domain` (local dry runs read `.deploy.env`). See section 3 for the GitHub setup.
 
 ---
 
@@ -37,7 +35,8 @@ npx wrangler dev --ip 0.0.0.0 --port 8787
 ## 0b. Environment flags: API encryption and console logging
 
 Set per environment in gitignored env files (copy `.env.example` → `.env.production`, `.env.qa`).
-`scripts/deploy.sh` loads the matching file for the build and passes `ENCRYPT_API` to the Worker.
+These files are for local builds/dry runs. In CI the same values come from GitHub Environment
+variables/secrets (section 3) and `scripts/deploy.sh` passes `ENCRYPT_API` to the Worker.
 
 | Flag | prod | qa | Effect |
 |---|---|---|---|
@@ -73,17 +72,17 @@ curl -s https://<qa-domain>/api/health   # UAT
 # expect "backendConfigured": true
 ```
 
+Normally you don't run these by hand: the Deploy workflow sets `BACKEND_URL` from the GitHub
+environment secret on every run (edit the secret → re-run). The scripts are for emergencies.
 Local runs read it from `.dev.vars` (gitignored).
 
 ### First-time move from the old committed var → secret (do in this order)
 
-Cloudflare refuses to create a secret while a plain var with the same name still
-exists, so deploy first (the new config no longer defines the var), then set the secret.
-Between the two steps `/api/*` returns 503 — run them back to back.
+The workflow already deploys first (the new config no longer defines the var) and then sets
+the secret. For the very first run, `/api/*` returns 503 for a few seconds between the two steps.
 
 ```bash
-npm run deploy:prod          # a deploy that no longer defines the var (needs a v* tag, as before)
-scripts/set-backend-url.sh production http://localhost:8080
+gh workflow run deploy.yml -f environment=production -f ref=vX.Y.Z
 curl -s https://<prod-domain>/api/health   # expect backendConfigured: true
 ```
 
@@ -122,52 +121,42 @@ git tag -d v1.2.0 && git push origin :refs/tags/v1.2.0   # delete a wrong tag (l
 
 ---
 
-## 3. Deploy a tag (or branch) to UAT or PROD
+## 3. Deploy a branch or tag (GitHub Actions only)
 
-### Option A — from GitHub Actions (recommended)
+Deploys run **only** from the `Deploy` workflow; `scripts/deploy.sh` refuses to run elsewhere
+(except `DRY_RUN=1`). Rules: **UAT = any branch or tag; PROD = a `vX.Y.Z` tag only.**
 
 ```bash
-# Tag → UAT
-gh workflow run deploy.yml -f environment=qa -f ref=v1.2.0
-
-# Tag → PROD
-gh workflow run deploy.yml -f environment=production -f ref=v1.2.0
-
-# Any branch → UAT
-gh workflow run deploy.yml -f environment=qa -f ref=feature/billing
-
-# Watch it
+gh workflow run deploy.yml -f environment=qa         -f ref=feature/billing   # any branch → UAT
+gh workflow run deploy.yml -f environment=qa         -f ref=v1.2.0            # any tag    → UAT
+gh workflow run deploy.yml -f environment=production -f ref=v1.2.0            # tag only   → PROD
 gh run watch
 ```
 
 Or in the browser: GitHub → **Actions → Deploy → Run workflow** → pick environment + ref.
 
-### Option B — from your laptop
+### One-time GitHub setup (Settings → Environments → `qa` and `production`)
 
-```bash
-# Tag → UAT
-git fetch --tags && git checkout v1.2.0
-npm ci
-npm run deploy:qa
+Everything the deploy needs is configured per environment — nothing lives in the repo.
 
-# Tag → PROD
-git fetch --tags && git checkout v1.2.0
-npm ci
-scripts/deploy.sh production v1.2.0     # refuses if HEAD isn't exactly v1.2.0
+| Type | Name | qa | production |
+|---|---|---|---|
+| Secret | `CLOUDFLARE_API_TOKEN` | token (Workers edit) | same or separate token |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | account id | account id |
+| Secret | `DEPLOY_DOMAIN` | UAT hostname | prod hostname |
+| Secret | `BACKEND_URL` | UAT backend origin | prod backend origin |
+| Secret | `API_ENCRYPTION_KEY` | empty/unused | long random string |
+| Variable | `ENCRYPT_API` | `false` | `true` |
+| Variable | `ENABLE_LOGS` | `true` | `false` |
 
-# Current branch → UAT
-npm run deploy:qa
-
-# Go back to your branch afterwards
-git checkout develop
-```
-
-First time on a laptop: `npx wrangler login`.
+Also: add **required reviewers** to the `production` environment so a prod deploy needs approval.
+Each run sets the `BACKEND_URL` / `API_ENCRYPTION_KEY` Worker secrets itself, so changing one =
+edit the GitHub secret and re-run the workflow.
 
 ### Try it without deploying
 
 ```bash
-DRY_RUN=1 scripts/deploy.sh qa
+DRY_RUN=1 scripts/deploy.sh qa                 # needs .env.qa locally
 DRY_RUN=1 scripts/deploy.sh production v1.2.0
 ```
 
