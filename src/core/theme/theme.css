@@ -1,0 +1,69 @@
+/*
+ * Tailwind v4 bridge: exposes tokens as utilities so components write
+ * `bg-surface text-fg-muted border-line rounded-card shadow-card`
+ * instead of inline style={{ ... var(--theme-…) }}.
+ */
+@theme inline {
+  --font-sans: var(--theme-font-sans);
+
+  --color-canvas: var(--theme-content-bg);
+  --color-surface: var(--theme-surface);
+  --color-surface-hover: var(--theme-surface-hover);
+  --color-line: var(--theme-border);
+  --color-line-strong: var(--theme-border-strong);
+
+  --color-fg: var(--theme-text-primary);
+  --color-fg-secondary: var(--theme-text-secondary);
+  --color-fg-muted: var(--theme-text-muted);
+  --color-fg-faint: var(--theme-text-faint);
+
+  --color-brand: var(--theme-brand);
+  --color-brand-deep: var(--theme-brand-deep);
+  --color-on-dark: var(--theme-brand-on-dark);
+  --color-on-dark-muted: var(--theme-brand-on-dark-muted);
+  --color-accent: var(--theme-accent);
+  --color-accent-dark: var(--theme-accent-dark);
+  --color-accent-light: var(--theme-accent-light);
+  --color-on-accent: var(--theme-on-accent);
+
+  --color-success: var(--theme-success);
+  --color-success-bg: var(--theme-success-bg);
+  --color-danger: var(--theme-danger);
+  --color-danger-bg: var(--theme-danger-bg);
+  --color-warning: var(--theme-warning);
+  --color-warning-bg: var(--theme-warning-bg);
+  --color-info: var(--theme-info);
+  --color-info-bg: var(--theme-info-bg);
+
+  --color-sidebar: var(--theme-sidebar-bg);
+  --color-sidebar-hover: var(--theme-sidebar-hover);
+  --color-sidebar-active: var(--theme-sidebar-active);
+  --color-sidebar-fg: var(--theme-sidebar-text);
+  --color-sidebar-fg-muted: var(--theme-sidebar-text-muted);
+  --color-sidebar-line: var(--theme-sidebar-border);
+
+  /* tone utilities: text-tone, bg-tone, bg-tone-soft, border-tone-soft */
+  --color-tone: var(--tone);
+  --color-tone-soft: color-mix(in srgb, var(--tone) 9%, transparent);
+  --color-tone-line: color-mix(in srgb, var(--tone) 20%, transparent);
+
+  --radius-control: var(--theme-radius);
+  --radius-card: var(--theme-radius-xl);
+  --radius-sm: var(--theme-radius-sm);
+
+  --shadow-card: var(--theme-shadow-sm);
+  --shadow-raised: var(--theme-shadow-md);
+  --shadow-overlay: var(--theme-shadow-xl);
+
+  --spacing-sidebar: var(--theme-sidebar-width);
+  --spacing-sidebar-collapsed: var(--theme-sidebar-collapsed);
+  --spacing-topbar: var(--theme-topbar-height);
+  --container-content: var(--theme-content-max);
+
+  --background-image-gradient-hero: var(--theme-gradient-hero);
+  --background-image-gradient-auth-header: var(--theme-gradient-auth-header);
+  --background-image-gradient-auth-page: var(--theme-gradient-auth-page);
+  --background-image-gradient-accent: var(--theme-gradient-accent);
+  --background-image-gradient-nav-active: var(--theme-gradient-nav-active);
+  --background-image-gradient-brand-bar: var(--theme-gradient-brand-bar);
+}

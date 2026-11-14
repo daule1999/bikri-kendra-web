@@ -1,0 +1,189 @@
+/* Base element styles, animations and shared helpers. Values come from tokens.css. */
+/* Google Fonts — must come first */
+
+/* Import Tailwind's base styles (preflight) */
+
+/* ============================================================
+   SHOP MANAGEMENT THEME — Design Tokens
+   ============================================================ */
+
+/* ============================================================
+   BASE STYLES
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--theme-content-bg);
+  color: var(--theme-text-primary);
+  font-family: var(--theme-font-sans);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   CUSTOM SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border-strong);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-text-faint);
+}
+
+/* Sidebar scrollbar — thinner */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--theme-sidebar-border);
+}
+
+/* ============================================================
+   FOCUS RINGS
+   ============================================================ */
+
+/*
+  Inputs / textareas / selects: suppress the browser outline entirely.
+  Focus state is communicated via the parent wrapper's focus-within
+  border + ring (Tailwind: focus-within:border-sky-500 focus-within:ring-2).
+*/
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/*
+  Buttons and other interactive elements:
+  Show a clean sky-blue focus ring ONLY when navigating by keyboard
+  (focus-visible). Mouse clicks won't trigger this, matching MUI/Google style.
+*/
+:focus-visible {
+  outline: 2px solid var(--theme-focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+  /* No box-shadow here — each element's focus:ring-* class provides its own
+     colored ring via box-shadow. Adding a global box-shadow would interfere
+     with those per-element colors (especially in Tailwind v4 where the layer
+     ordering can cause unexpected overrides). */
+}
+
+/*
+  Note: Elements that use Tailwind's focus:ring-* classes keep their own rings.
+  Tailwind's class selectors (.focus\:ring-2:focus) have equal specificity to
+  the global :focus-visible rule but are declared earlier in the cascade, so
+  each element's own Tailwind ring wins automatically — no override needed here.
+*/
+
+input,
+select,
+textarea {
+  transition: border-color var(--theme-transition), box-shadow var(--theme-transition);
+}
+
+/* ============================================================
+   TYPOGRAPHY HELPERS
+   ============================================================ */
+.text-gradient-brand {
+  background: linear-gradient(135deg, var(--theme-brand) 0%, var(--theme-tone-violet) 50%, var(--theme-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0   color-mix(in srgb, var(--theme-accent) 40%, transparent); }
+  70%  { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0   transparent; }
+}
+
+/* Spinner automatic hue cycling — full spectrum every 6 s, no code changes needed */
+@keyframes spinner-hue {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+.animate-fade-in-up  { animation: fadeInUp  0.35s ease both; }
+.animate-fade-in     { animation: fadeIn    0.25s ease both; }
+
+/* Stagger children */
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
+
+/* ============================================================
+   CARD & SURFACE HELPERS
+   ============================================================ */
+.card {
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-radius-lg);
+  box-shadow: var(--theme-shadow-sm);
+  transition: box-shadow var(--theme-transition), transform var(--theme-transition);
+}
+.card:hover {
+  box-shadow: var(--theme-shadow-md);
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--theme-shadow-lg);
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+/* ============================================================
+   TONES — set --tone once, derive tinted surfaces from it.
+   Usage: <div class="tone-emerald bg-tone-soft text-tone">…</div>
+   ============================================================ */
+.tone-indigo  { --tone: var(--theme-tone-indigo); }
+.tone-violet  { --tone: var(--theme-tone-violet); }
+.tone-emerald { --tone: var(--theme-tone-emerald); }
+.tone-amber   { --tone: var(--theme-tone-amber); }
+.tone-pink    { --tone: var(--theme-tone-pink); }
+.tone-orange  { --tone: var(--theme-tone-orange); }
+.tone-cyan    { --tone: var(--theme-tone-cyan); }
+.tone-red     { --tone: var(--theme-tone-red); }
+.tone-slate   { --tone: var(--theme-tone-slate); }

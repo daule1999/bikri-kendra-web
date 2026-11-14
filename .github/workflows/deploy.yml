@@ -1,0 +1,57 @@
+name: Deploy
+
+# develop branch  → QA        (automatic)
+# v1.2.3 tag      → Production (automatic, needs approval if the 'production' environment is protected)
+# Manual run      → any branch or tag → QA, or a v* tag → Production
+on:
+  push:
+    branches: [develop]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target instance
+        type: choice
+        options: [qa, production]
+        default: qa
+      ref:
+        description: Branch or tag to deploy (production requires a v* tag)
+        required: true
+        default: develop
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0          # tags needed for version labels
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_REF_NAME: ${{ github.event.inputs.ref || github.ref_name }}
+        run: |
+          TARGET="${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}"
+          scripts/deploy.sh "$TARGET"
+
+      - name: Smoke test
+        run: |
+          TARGET="${{ github.event.inputs.environment || (startsWith(github.ref, 'refs/tags/') && 'production' || 'qa') }}"
+          HOST=$([ "$TARGET" = production ] && echo pos.bikri-kendra.org || echo qa-pos.bikri-kendra.org)
+          sleep 10
+          curl -fsS "https://$HOST/api/health" | tee /dev/stderr | grep -q '"status":"ok"'

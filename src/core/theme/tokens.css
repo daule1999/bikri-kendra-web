@@ -1,0 +1,97 @@
+/* ============================================================
+   DESIGN TOKENS — single source of truth for every visual value.
+   Components never hardcode colours/shadows/radii; they use these
+   variables directly or via the Tailwind utilities in theme.css.
+   ============================================================ */
+:root {
+  /* Sidebar */
+  --theme-sidebar-bg:      #1E1B4B;
+  --theme-sidebar-hover:   #2D2A6E;
+  --theme-sidebar-active:  #4F46E5;
+  --theme-sidebar-text:    #C7D2FE;
+  --theme-sidebar-text-muted: #818CF8;
+  --theme-sidebar-border:  #312E81;
+  --theme-sidebar-width:   256px;
+  --theme-sidebar-collapsed: 72px;
+
+  /* Brand Accent — Amber/Saffron */
+  --theme-accent:          #F59E0B;
+  --theme-accent-dark:     #D97706;
+  --theme-accent-light:    #FDE68A;
+
+  /* Content Area */
+  --theme-content-bg:      #F1F5F9;
+  --theme-surface:         #FFFFFF;
+  --theme-surface-hover:   #F8FAFC;
+  --theme-border:          #E2E8F0;
+  --theme-border-strong:   #CBD5E1;
+
+  /* Text */
+  --theme-text-primary:    #0F172A;
+  --theme-text-secondary:  #334155;
+  --theme-text-muted:      #64748B;
+  --theme-text-faint:      #94A3B8;
+
+  /* Status Colors */
+  --theme-success:         #10B981;
+  --theme-success-bg:      #ECFDF5;
+  --theme-danger:          #EF4444;
+  --theme-danger-bg:       #FEF2F2;
+  --theme-warning:         #F59E0B;
+  --theme-warning-bg:      #FFFBEB;
+  --theme-info:            #3B82F6;
+  --theme-info-bg:         #EFF6FF;
+
+  /* Shadows */
+  --theme-shadow-sm:       0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --theme-shadow-md:       0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --theme-shadow-lg:       0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --theme-shadow-xl:       0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* Radius */
+  --theme-radius-sm:       6px;
+  --theme-radius:          10px;
+  --theme-radius-lg:       14px;
+  --theme-radius-xl:       20px;
+
+  /* Transitions */
+  --theme-transition:      150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --theme-transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+
+  /* Brand */
+  --theme-brand:           #4F46E5;
+  --theme-brand-strong:    #4338CA;
+  --theme-brand-deep:      #1E1B4B;
+  --theme-brand-mid:       #312E81;
+  --theme-brand-on-dark:   #C7D2FE;
+  --theme-brand-on-dark-muted: #A5B4FC;
+  --theme-on-accent:       #FFFFFF;
+  --theme-focus-ring:      #0284C7;
+
+  /* Gradients */
+  --theme-gradient-hero:   linear-gradient(135deg, var(--theme-brand-deep) 0%, var(--theme-brand-mid) 60%, var(--theme-brand-strong) 100%);
+  --theme-gradient-auth-header: linear-gradient(160deg, var(--theme-brand-deep) 0%, var(--theme-brand-mid) 100%);
+  --theme-gradient-auth-page: linear-gradient(135deg, #0F0C2E 0%, var(--theme-brand-deep) 40%, #1A1040 100%);
+  --theme-gradient-accent: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-accent-dark) 100%);
+  --theme-gradient-nav-active: linear-gradient(135deg, var(--theme-sidebar-active) 0%, #6D28D9 100%);
+  --theme-gradient-brand-bar: linear-gradient(90deg, var(--theme-brand) 0%, var(--theme-tone-violet) 50%, var(--theme-accent) 100%);
+
+  /* Tones — the palette features/badges pick from via the `tone` prop */
+  --theme-tone-indigo:     #4F46E5;
+  --theme-tone-violet:     #7C3AED;
+  --theme-tone-emerald:    #059669;
+  --theme-tone-amber:      #D97706;
+  --theme-tone-pink:       #DB2777;
+  --theme-tone-orange:     #F59E0B;
+  --theme-tone-cyan:       #0891B2;
+  --theme-tone-red:        #EF4444;
+  --theme-tone-slate:      #64748B;
+
+  /* Typography */
+  --theme-font-sans:       'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Layout */
+  --theme-topbar-height:   64px;
+  --theme-content-max:     80rem;
+}

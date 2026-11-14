@@ -1,0 +1,2 @@
+# Copy to .dev.vars for `npm run preview` (local Worker + /api proxy). Never commit .dev.vars.
+BACKEND_URL=https://api.bikri-kendra.org
