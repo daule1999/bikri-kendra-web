@@ -7,7 +7,7 @@
     "build": "npm run check && next build",
     "check": "npm run check:tokens && npm run typecheck",
     "check:tokens": "node scripts/check-tokens.mjs",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.strict.json && tsc --noEmit -p worker",
     "preview": "npm run build && wrangler dev",
     "deploy:qa": "scripts/deploy.sh qa",
     "deploy:prod": "scripts/deploy.sh production"
@@ -15,7 +15,11 @@
   "dependencies": {
     "next": "^16.2.4",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "@heroicons/react": "^2.2.0",
+    "@reduxjs/toolkit": "^2.12.0",
+    "react-redux": "^9.3.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
