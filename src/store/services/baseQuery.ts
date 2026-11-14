@@ -6,6 +6,7 @@
  */
 import { fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import { apiFetch } from '@/core/api/secure-fetch';
 import { authService } from '@/core/auth/auth-service';
 import { sessionStore } from '@/core/auth/session-store';
 import { activeEventStore } from '@/core/tenant/active-event-store';
@@ -14,6 +15,7 @@ import { purgeSession } from '../slices/authSlice';
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: `${API_BASE_PATH}/`,
+  fetchFn: (input, init) => apiFetch(input as string | Request, init),
   prepareHeaders: (headers) => {
     headers.set('accept', 'application/json');
     headers.set('Content-Type', 'application/json');

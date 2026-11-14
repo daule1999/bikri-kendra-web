@@ -7,10 +7,17 @@ import { ENCRYPTED_HEADER, decryptText, encryptText } from '@/core/crypto/payloa
  * into a normal Response, so callers never see the difference.
  * Every API call in the app (core http client + legacy apiClient) goes through here.
  */
-export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(input: string | Request, init: RequestInit = {}): Promise<Response> {
   const { encryptApi, encryptionKey } = RUNTIME_FLAGS;
   if (!encryptApi) return fetch(input, init);
   if (!encryptionKey) throw new Error('NEXT_PUBLIC_API_ENCRYPTION_KEY is not set but API encryption is enabled');
+
+  // RTK Query's fetchBaseQuery hands over a Request object: flatten it to url + init.
+  if (typeof input !== 'string') {
+    const req = input;
+    const hasBody = !['GET', 'HEAD'].includes(req.method.toUpperCase());
+    return apiFetch(req.url, { method: req.method, headers: req.headers, signal: req.signal, body: hasBody ? await req.text() : undefined, credentials: req.credentials });
+  }
 
   const headers = new Headers(init.headers);
   headers.set(ENCRYPTED_HEADER, '1');
