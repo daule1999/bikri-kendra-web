@@ -17,7 +17,7 @@ URL of your backend gateway.
 ## Deploy
 
 Two instances — QA (`qa-pos.bikri-kendra.org`) and Production (`pos.bikri-kendra.org`).
-See **docs/DEPLOYMENT.md**.
+See **docs/DEPLOYMENT.md**. Copy-paste commands: **docs/COMMANDS.md**.
 
     npm run deploy:qa      # current branch → QA
     npm run deploy:prod    # only from a v* release tag
