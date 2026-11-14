@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/core/api/secure-fetch';
 import { useDispatch, useSelector } from 'react-redux';
 import { clearMustResetPassword, selectMustResetPassword, selectUsername } from '@/store/slices/authSlice';
 
@@ -130,7 +131,7 @@ export default function SecurityPage() {
       const token = localStorage.getItem('accessToken');
       const caller = localStorage.getItem('username');
 
-      const response = await fetch(`/api/users/${username}/change-password`, {
+      const response = await apiFetch(`/api/users/${username}/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

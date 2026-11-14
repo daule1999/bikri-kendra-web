@@ -34,6 +34,28 @@ npx wrangler dev --ip 0.0.0.0 --port 8787
 
 ---
 
+## 0b. Environment flags: API encryption and console logging
+
+Set per environment in gitignored env files (copy `.env.example` → `.env.production`, `.env.qa`).
+`scripts/deploy.sh` loads the matching file for the build and passes `ENCRYPT_API` to the Worker.
+
+| Flag | prod | qa | Effect |
+|---|---|---|---|
+| `NEXT_PUBLIC_ENCRYPT_API` | `true` | `false` | `true`: every /api request/response body is AES-256-GCM encrypted (DevTools shows `{"enc":"…"}`); Worker rejects plain requests. `false`: readable. |
+| `NEXT_PUBLIC_API_ENCRYPTION_KEY` | long random string | — | Must equal the Worker secret `API_ENCRYPTION_KEY` |
+| `NEXT_PUBLIC_ENABLE_LOGS` | `false` | `true` | `false`: `console.log/debug/info/trace` are silenced in the browser (warn/error stay) |
+
+```bash
+openssl rand -base64 32                 # generate a key → put in .env.production
+scripts/set-api-key.sh production       # upload it to the Worker as a secret (then redeploy)
+```
+
+Notes: the key ships inside the browser bundle, so this hides payloads from DevTools/proxies/casual
+inspection — it does not replace HTTPS or backend auth. URLs and query strings are not encrypted
+(put sensitive data in bodies), and file uploads/downloads are left as-is.
+
+---
+
 ## 1. Set / change the backend URL (kept out of git)
 
 `BACKEND_URL` is a Cloudflare **secret** per environment — it is not in

@@ -1,2 +1,5 @@
 # Copy to .dev.vars for `npm run preview` (local Worker + /api proxy). Never commit .dev.vars.
 BACKEND_URL=http://localhost:8080
+# Local payload encryption (optional). Must match NEXT_PUBLIC_* in the env file used for `npm run build`.
+ENCRYPT_API=false
+API_ENCRYPTION_KEY=

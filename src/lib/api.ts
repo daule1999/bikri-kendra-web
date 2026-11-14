@@ -3,6 +3,7 @@
  * Now shares the new core: same token/event source, single-flight refresh on 401,
  * same logout. New code should use `http` from '@/core/api' instead.
  */
+import { apiFetch } from '@/core/api/secure-fetch';
 import { authService } from '@/core/auth/auth-service';
 import { sessionStore } from '@/core/auth/session-store';
 import { getTokenExpiryMs as coreExpiry, isTokenExpired } from '@/core/auth/token';
@@ -43,7 +44,7 @@ function forceLogout() {
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 async function coreRequest(method: Method, endpoint: string, data?: unknown, headers?: Record<string, string>): Promise<Response> {
-  const doFetch = () => fetch(`${API_BASE_PATH}${endpoint}`, {
+  const doFetch = () => apiFetch(`${API_BASE_PATH}${endpoint}`, {
     method,
     headers: headersFor(headers),
     ...(data !== undefined && { body: JSON.stringify(data) }),

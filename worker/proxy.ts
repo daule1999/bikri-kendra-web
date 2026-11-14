@@ -1,6 +1,7 @@
 import type { Env, HandlerContext } from './types';
 import { resolveRule } from './proxy-rules';
 import { CUSTOM_HANDLERS } from './handlers';
+import { ENCRYPTED_HEADER, decryptText, encryptText } from '../src/core/crypto/payload-crypto';
 
 /** Request headers the browser may pass through to the backend. Everything else (cookies etc.) is dropped. */
 const FORWARDED_REQUEST_HEADERS = ['authorization', 'content-type', 'accept', 'x-event-id', 'x-request-id'] as const;
@@ -67,8 +68,8 @@ function makeBackendCaller(env: Env, request: Request): HandlerContext['backend'
   };
 }
 
-/** Single entry point for every /api/* request. */
-export async function handleApi(request: Request, env: Env): Promise<Response> {
+/** Business routing (always sees plain JSON). */
+async function handleApiPlain(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
 
   if (url.pathname === '/api/health') {
@@ -97,4 +98,40 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
   const match = resolveRule(url.pathname);
   if (!match) return json(404, { error: 'Unknown API route', path: url.pathname });
   return forward(env, request, match.backendPath, url.search, !match.rule.public);
+}
+
+/**
+ * Single entry point for every /api/* request. Adds the optional encryption
+ * envelope around handleApiPlain: decrypt the request body, run, encrypt the
+ * JSON response. If ENCRYPT_API=true, plain requests are rejected.
+ */
+export async function handleApi(request: Request, env: Env): Promise<Response> {
+  const { pathname } = new URL(request.url);
+  if (pathname === '/api/health') return handleApiPlain(request, env);
+
+  const encrypted = request.headers.get(ENCRYPTED_HEADER) === '1';
+  if (!encrypted) {
+    if (env.ENCRYPT_API === 'true') return json(400, { error: 'Encrypted payload required' });
+    return handleApiPlain(request, env);
+  }
+  const key = env.API_ENCRYPTION_KEY;
+  if (!key) return json(500, { error: 'Encryption not configured' });
+
+  let req = request;
+  const hasBody = !['GET', 'HEAD'].includes(request.method.toUpperCase());
+  if (hasBody && (request.headers.get('content-type') || '').includes('application/json')) {
+    try {
+      const { enc } = JSON.parse(await request.text()) as { enc: string };
+      req = new Request(request.url, { method: request.method, headers: request.headers, body: await decryptText(enc, key) });
+    } catch {
+      return json(400, { error: 'Invalid encrypted payload' });
+    }
+  }
+
+  const res = await handleApiPlain(req, env);
+  if (res.status === 204 || !(res.headers.get('content-type') || '').includes('application/json')) return res;
+  const headers = new Headers(res.headers);
+  headers.set(ENCRYPTED_HEADER, '1');
+  headers.delete('content-length');
+  return new Response(JSON.stringify({ enc: await encryptText(await res.text(), key) }), { status: res.status, statusText: res.statusText, headers });
 }

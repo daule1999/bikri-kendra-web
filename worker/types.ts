@@ -6,6 +6,10 @@ export interface Env {
   BACKEND_URL?: string;
   /** local | qa | production — from wrangler.jsonc. */
   APP_ENV?: string;
+  /** 'true' = require encrypted /api payloads (set per environment from the env file). */
+  ENCRYPT_API?: string;
+  /** Secret passphrase for payload encryption; must equal NEXT_PUBLIC_API_ENCRYPTION_KEY at build. */
+  API_ENCRYPTION_KEY?: string;
   /** Git tag or branch@sha this deployment was built from — injected by scripts/deploy.sh. */
   APP_VERSION?: string;
   /** Full commit SHA — injected by scripts/deploy.sh. */

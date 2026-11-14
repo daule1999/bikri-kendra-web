@@ -48,6 +48,10 @@ VERSION="${TAG:-${BRANCH//\//-}@${SHORT_SHA}}"
 
 echo "▶ Deploying $VERSION to $ENVIRONMENT"
 
+# Per-environment flags (encryption, console logging) from .env.<environment>.
+[[ -f ".env.$ENVIRONMENT" ]] || { echo "✖ Missing .env.$ENVIRONMENT (copy .env.example)." >&2; exit 1; }
+set -a; source ".env.$ENVIRONMENT"; set +a
+
 export NEXT_PUBLIC_APP_ENV="$ENVIRONMENT"
 export NEXT_PUBLIC_APP_VERSION="$VERSION"
 export NEXT_PUBLIC_GIT_SHA="$SHA"
@@ -59,6 +63,7 @@ npx wrangler deploy ${DRY_RUN:+--dry-run} \
   --tag "$VERSION" \
   --message "$VERSION ($SHORT_SHA) from ${BRANCH}" \
   --var "APP_VERSION:$VERSION" \
-  --var "GIT_SHA:$SHA"
+  --var "GIT_SHA:$SHA" \
+  --var "ENCRYPT_API:${NEXT_PUBLIC_ENCRYPT_API:-false}"
 
 if [[ -n "${DRY_RUN:-}" ]]; then echo "✓ dry run OK for $ENVIRONMENT ($VERSION)"; else echo "✓ $ENVIRONMENT is now running $VERSION"; fi

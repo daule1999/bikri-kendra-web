@@ -1,4 +1,5 @@
 import { API_BASE_PATH, HEADERS } from '@/core/config';
+import { apiFetch } from './secure-fetch';
 import { ApiError, extractErrorMessage } from './api-error';
 
 /**
@@ -103,7 +104,7 @@ async function send<T>(method: Method, path: string, body: unknown, options: Req
   bump(1);
   let response: Response;
   try {
-    response = await fetch(buildUrl(path, options.query), {
+    response = await apiFetch(buildUrl(path, options.query), {
       method,
       headers,
       signal: options.signal,
