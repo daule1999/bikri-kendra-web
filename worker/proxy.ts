@@ -1,4 +1,4 @@
-import type { Env } from './types';
+import type { Env, HandlerContext } from './types';
 import { resolveRule } from './proxy-rules';
 import { CUSTOM_HANDLERS } from './handlers';
 
@@ -6,10 +6,12 @@ import { CUSTOM_HANDLERS } from './handlers';
 const FORWARDED_REQUEST_HEADERS = ['authorization', 'content-type', 'accept', 'x-event-id', 'x-request-id'] as const;
 
 /** Upstream response headers we pass back to the browser. */
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'x-request-id', 'cache-control'] as const;
+const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'x-request-id', 'cache-control', 'x-new-access-token'] as const;
 
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+const backendOrigin = (env: Env) => (env.BACKEND_URL || '').replace(/\/+$/, '');
 
 function buildUpstreamHeaders(request: Request, includeAuth: boolean): Headers {
   const headers = new Headers();
@@ -33,15 +35,14 @@ function sanitizeResponse(upstream: Response): Response {
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers });
 }
 
-async function forwardTo(env: Env, request: Request, backendPath: string, search: string, includeAuth: boolean, init?: RequestInit) {
-  const backend = (env.BACKEND_URL || '').replace(/\/+$/, '');
-  const method = init?.method ?? request.method;
-  const hasBody = !['GET', 'HEAD'].includes(method.toUpperCase());
+/** Plain pass-through: same method, body and (allow-listed) headers. */
+async function forward(env: Env, request: Request, backendPath: string, search: string, includeAuth: boolean) {
+  const hasBody = !['GET', 'HEAD'].includes(request.method.toUpperCase());
   try {
-    const upstream = await fetch(`${backend}${backendPath}${search}`, {
-      method,
-      headers: init?.headers ?? buildUpstreamHeaders(request, includeAuth),
-      body: init?.body ?? (hasBody ? request.body : undefined),
+    const upstream = await fetch(`${backendOrigin(env)}${backendPath}${search}`, {
+      method: request.method,
+      headers: buildUpstreamHeaders(request, includeAuth),
+      body: hasBody ? request.body : undefined,
       redirect: 'manual',
     });
     return sanitizeResponse(upstream);
@@ -49,6 +50,21 @@ async function forwardTo(env: Env, request: Request, backendPath: string, search
     console.error('[proxy] upstream unreachable', backendPath, err);
     return json(502, { error: 'Backend unreachable', path: backendPath });
   }
+}
+
+/** Backend caller handed to custom handlers (auth/event/request-id applied). */
+function makeBackendCaller(env: Env, request: Request): HandlerContext['backend'] {
+  return (backendPath, init = {}) => {
+    const headers = buildUpstreamHeaders(request, true);
+    headers.set('content-type', 'application/json');
+    return fetch(`${backendOrigin(env)}${backendPath}`, {
+      method: init.method ?? 'GET',
+      headers,
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: init.signal,
+      redirect: 'manual',
+    });
+  };
 }
 
 /** Single entry point for every /api/* request. */
@@ -68,16 +84,17 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
     return json(503, { error: 'Backend not configured', environment: env.APP_ENV, hint: 'Set BACKEND_URL for this environment in wrangler.jsonc' });
   }
 
-  const custom = CUSTOM_HANDLERS[url.pathname];
+  const custom = CUSTOM_HANDLERS[`${request.method.toUpperCase()} ${url.pathname.replace(/\/+$/, '')}`];
   if (custom) {
-    return custom({
-      request, env, url,
-      forward: (backendPath, init) => forwardTo(env, request, backendPath, '', true, init),
-    });
+    try {
+      return sanitizeResponse(await custom({ request, env, url, backend: makeBackendCaller(env, request) }));
+    } catch (err) {
+      console.error('[proxy] handler failed', url.pathname, err);
+      return json(502, { error: 'Backend unreachable', path: url.pathname });
+    }
   }
 
   const match = resolveRule(url.pathname);
   if (!match) return json(404, { error: 'Unknown API route', path: url.pathname });
-
-  return forwardTo(env, request, match.backendPath, url.search, !match.rule.public);
+  return forward(env, request, match.backendPath, url.search, !match.rule.public);
 }

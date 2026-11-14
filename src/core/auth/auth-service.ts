@@ -66,6 +66,8 @@ export const authService = {
   logout() {
     sessionStore.clear();
     activeEventStore.clear();
+    // PHASE 1 COMPAT: per-session keys legacy pages keep
+    ['shopId', 'counterId', 'selectedEventId'].forEach((k) => localStorage.removeItem(k));
   },
 };
 

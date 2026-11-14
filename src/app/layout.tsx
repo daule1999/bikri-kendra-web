@@ -2,6 +2,11 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { APP } from '@/core/config';
 import { AuthProvider } from '@/core/auth';
+// PHASE 1 COMPAT providers used by ported pages
+import StoreProvider from '@/store/StoreProvider';
+import { ShopProvider } from '@/hooks/useShop';
+import { ThemeProvider } from '@/lib/theme';
+import GlobalLoader from '@/components/GlobalLoader';
 
 export const metadata: Metadata = { title: APP.title, description: APP.description };
 
@@ -9,7 +14,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className="antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <StoreProvider>
+              <ShopProvider>
+                <GlobalLoader />
+                {children}
+              </ShopProvider>
+            </StoreProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

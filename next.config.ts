@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 // Static export → plain HTML/CSS/JS in ./out, served by Cloudflare as static assets.
 const nextConfig: NextConfig = {
   output: "export",
-  trailingSlash: true,
+  trailingSlash: false, // same URLs as EventManagement (/dashboard, /shops/12)
   images: { unoptimized: true },
 };
 

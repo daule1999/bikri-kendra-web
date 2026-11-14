@@ -39,7 +39,7 @@ bikri-kendra-cloudflare/
 
 ## Dependency rules
 
-`app → features → layouts → core → shared`. A feature never imports another
+`app → features → layouts → core → shared`. (Ported legacy code under src/components, hooks, lib, store and src/app/<module> is exempt until phase 2.) A feature never imports another
 feature's internals (only its `index.ts`). `shared/ui` knows nothing about auth,
 API or features.
 
@@ -104,25 +104,61 @@ The frontend gate is UX only — the backend remains the authority.
    replace `canAccessX()` checks with `<Can>` / `usePermissions`.
 6. `npm run build` (runs token check + both type-checks).
 
-## Proxy gaps to resolve while migrating
+## Custom proxy handlers
 
-These EventManagement routes are NOT a plain prefix rewrite. Fix each one when its page is migrated:
+EventManagement routes that did more than rewrite a URL now live in
+`worker/handlers/` (keyed by `METHOD /path`; other methods use the generic rule):
 
-| Old route | Why it differs | Suggested fix |
-|---|---|---|
-| `POST /api/shops` | went to `…/shops/register` | call `/shops/register` from the client |
-| `POST /api/shops-staff/unassign` | became `DELETE …/shops-staff/user/{id}` | call `DELETE /shops-staff/user/{id}` |
-| `PUT /api/billing/invoices` | id taken from body | call `PUT /billing/invoices/{id}` |
-| `POST /api/billing/invoices/enriched` | merges 3 backend calls | backend endpoint, or a `worker/handlers` entry |
-| `GET/POST /api/inventory/sales(/bulk)` | enriches with product/shop lookups | same as above |
-| `/api/retail/sales/*` | used a separate `NEXT_PUBLIC_BACKEND_URL` | confirm target, add a rule |
-| `/api/logs`, `/api/print`, `/api/printers`, `/api/qz-cert`, `/api/download-agent` | not backend proxies (Loki, local print agent) | decide per feature (printing migration) |
+| Route | What it does |
+|---|---|
+| `POST /api/billing/invoices/enriched` | invoice search + retail/payment lookups, merged (net of returns) |
+| `PUT /api/billing/invoices` | id from body → `PUT …/invoices/{id}` |
+| `POST /api/inventory/sales` | product/shop category check, then issue |
+| `POST /api/inventory/sales/bulk` | single-shop + category check, then bulk issue |
+| `POST /api/shops` | → `…/shops/register` |
+| `POST /api/shops-staff/unassign` | `{userId}` → `DELETE …/shops-staff/user/{id}` |
+
+Not ported (no Cloudflare equivalent): `/api/print`, `/api/printers`, `/api/qz-cert`,
+`/api/download-agent` (printing — deferred) and `/api/logs` (Loki shipping — off).
+
+## Dynamic routes on a static export
+
+`[id]` pages are built once as `<base>/_/` (`generateStaticParams`), and
+`worker/dynamic-routes.ts` serves that build for any real id (HTML and route
+payloads). The page reads the id from the URL via `useLegacyParams()`
+(`src/lib/routeParams.tsx`). New `[param]` pages: add the pattern there and to
+`assets.run_worker_first` in `wrangler.jsonc`.
+
+## Phase 1 compatibility layer (remove as modules are refactored)
+
+The ported pages run unchanged on top of the new core through these adapters:
+
+| File | Role |
+|---|---|
+| `src/lib/api.ts` | legacy `apiClient` → shared token/event, refresh-on-401, logout |
+| `src/store/services/baseQuery.ts` | RTK Query → same token/event source + refresh |
+| `src/store/slices/authSlice.ts` | notifies the core session store after its localStorage writes |
+| `src/core/auth/session-store.ts`, `src/core/tenant/active-event-store.ts` | use EventManagement's localStorage keys |
+| `src/components/layout/AppLayout.tsx` | legacy wrapper → `AppShell` + feature permission + "event must be selected" |
+| `src/components/layout/AuthOnlyLayout.tsx` | guard for chrome-less pages (select-event, security, full-screen reports) |
+| `src/lib/centralPrint.ts` | printing disabled — rejects with a clear message |
+| `src/lib/logger.ts` | console only (no `/api/logs`) |
+
+Rules relaxed for ported code only: `tsconfig.json` is non-strict (ported pages),
+`tsconfig.strict.json` keeps `core/ shared/ layouts/ features/` strict, and
+`scripts/check-tokens.mjs` skips the folders in its `LEGACY_DIRS` list.
 
 ## Migration status
 
-| Page | Status |
-|---|---|
-| Login (`/`) | ✅ migrated |
-| Dashboard (`/dashboard/`) | ✅ migrated (print-preferences card deferred to printing feature) |
-| Select event, Change password | ⏭ next — login/ProtectedRoute already route to them |
-| Inventory, Sales, Shops, Shifts, Events, Reports, Users, Billing | ⏳ |
+Phase 1 (port onto new core): **all 37 pages done.**
+Phase 2 (refactor onto shared/ui + tokens + features/): one module at a time —
+move it to `features/<name>/`, delete its entry from `LEGACY_DIRS`, then from `features/upcoming.ts`.
+
+| Module | Phase 1 | Phase 2 |
+|---|---|---|
+| Login, Dashboard | ✅ | ✅ |
+| Select event, Users (list/profile/preferences/security) | ✅ | ⏳ |
+| Events, Shops, Shifts | ✅ | ⏳ |
+| Inventory (13 pages), Retail Sales | ✅ | ⏳ |
+| Reports (7 pages), Billing (4 pages) | ✅ | ⏳ |
+| Printing | ⛔ deferred | — |

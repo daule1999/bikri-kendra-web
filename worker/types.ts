@@ -13,13 +13,18 @@ export interface Env {
 }
 
 /**
- * A custom handler for the rare route that is NOT a 1:1 pass-through
- * (e.g. a BFF endpoint that fans out to several services and merges results).
- * Receives a `forward` helper that already applies auth/header/URL rules.
+ * A custom handler for the few routes that are NOT a 1:1 pass-through
+ * (BFF endpoints that fan out and merge, or that reshape the request).
  */
-export type RouteHandler = (ctx: {
+export interface HandlerContext {
   request: Request;
   env: Env;
   url: URL;
-  forward: (backendPath: string, init?: RequestInit) => Promise<Response>;
-}) => Promise<Response>;
+  /**
+   * Calls the backend with the caller's Authorization / X-Event-Id / X-Request-Id
+   * already applied. Returns the raw upstream Response.
+   */
+  backend: (backendPath: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }) => Promise<Response>;
+}
+
+export type RouteHandler = (ctx: HandlerContext) => Promise<Response>;

@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "incremental": false
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/core/**/*",
+    "src/shared/**/*",
+    "src/layouts/**/*",
+    "src/features/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "worker",
+    "out"
+  ]
+}

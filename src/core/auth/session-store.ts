@@ -1,52 +1,71 @@
-import { STORAGE_KEYS } from '@/core/config';
 import type { Session } from './types';
 
 /**
- * localStorage-backed session store with a subscribe API, consumed by React via
- * useSyncExternalStore. Also syncs across tabs (logout in one tab logs out all).
+ * localStorage-backed session store with a subscribe API (useSyncExternalStore).
+ *
+ * PHASE 1 COMPAT: the session is stored under the same keys EventManagement used
+ * (accessToken, refreshToken, username, userRole, mustResetPassword) because the
+ * ported pages and the legacy Redux auth slice read them directly. When the last
+ * legacy page is refactored, switch to a single namespaced key.
  */
+const KEYS = {
+  accessToken: 'accessToken',
+  refreshToken: 'refreshToken',
+  username: 'username',
+  role: 'userRole',
+  mustResetPassword: 'mustResetPassword',
+} as const;
+
 type Listener = () => void;
 const listeners = new Set<Listener>();
-let cached: Session | null | undefined;
+let cachedRaw = '';
+let cached: Session | null = null;
 
 const isBrowser = () => typeof window !== 'undefined';
 
 function read(): Session | null {
   if (!isBrowser()) return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.session);
-    return raw ? (JSON.parse(raw) as Session) : null;
-  } catch {
-    return null;
-  }
+  const v = Object.fromEntries(Object.entries(KEYS).map(([k, key]) => [k, localStorage.getItem(key)])) as Record<keyof typeof KEYS, string | null>;
+  const raw = JSON.stringify(v);
+  if (raw === cachedRaw) return cached; // stable snapshot for React
+  cachedRaw = raw;
+  cached = v.accessToken && v.username
+    ? {
+        accessToken: v.accessToken,
+        refreshToken: v.refreshToken ?? '',
+        username: v.username,
+        role: v.role ?? 'USER',
+        mustResetPassword: v.mustResetPassword === 'true',
+      }
+    : null;
+  return cached;
 }
 
 const emit = () => listeners.forEach((l) => l());
 
 export const sessionStore = {
-  get(): Session | null {
-    if (cached === undefined) cached = read();
-    return cached;
-  },
+  get: read,
   set(session: Session) {
-    cached = session;
-    localStorage.setItem(STORAGE_KEYS.session, JSON.stringify(session));
+    localStorage.setItem(KEYS.accessToken, session.accessToken);
+    localStorage.setItem(KEYS.refreshToken, session.refreshToken);
+    localStorage.setItem(KEYS.username, session.username);
+    localStorage.setItem(KEYS.role, String(session.role));
+    localStorage.setItem(KEYS.mustResetPassword, String(session.mustResetPassword));
     emit();
   },
   update(patch: Partial<Session>) {
-    const current = sessionStore.get();
+    const current = read();
     if (current) sessionStore.set({ ...current, ...patch });
   },
   clear() {
-    cached = null;
-    if (isBrowser()) localStorage.removeItem(STORAGE_KEYS.session);
+    if (isBrowser()) Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
     emit();
   },
+  /** Re-read storage and notify (for legacy code that writes localStorage directly). */
+  sync: emit,
   subscribe(listener: Listener) {
     listeners.add(listener);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.session) { cached = read(); listener(); }
-    };
+    const onStorage = () => listener();
     if (isBrowser()) window.addEventListener('storage', onStorage);
     return () => {
       listeners.delete(listener);

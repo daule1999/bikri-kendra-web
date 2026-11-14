@@ -49,6 +49,9 @@ export const PROXY_RULES: readonly ProxyRule[] = [
   { from: '/api/shifts',         to: '/api/sales-svc/shifts' },
   { from: '/api/reports',        to: '/api/sales-svc/reports' },
   { from: '/api/page-init',      to: '/api/sales-svc/page-init' },
+
+  // ── legacy (EventManagement used a separate NEXT_PUBLIC_BACKEND_URL for these) ──
+  { from: '/api/retail',         to: '/api/retail' },
 ];
 
 /** Returns the matching rule and the rewritten backend path, or null. */

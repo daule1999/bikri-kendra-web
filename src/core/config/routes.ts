@@ -1,20 +1,26 @@
-/** Every in-app URL. Trailing slashes match next.config `trailingSlash: true`. */
+/** Every in-app URL — identical to EventManagement's (no trailing slash). */
 export const ROUTES = {
   login: '/',
-  dashboard: '/dashboard/',
-  selectEvent: '/select-event/',
-  changePassword: '/user/security/',
-  users: '/user/',
-  inventory: '/inventory/',
-  sales: '/sales/',
-  reports: '/reports/',
-  shops: '/shops/',
-  shifts: '/shifts/',
-  events: '/events/',
-  billing: '/billing/',
+  dashboard: '/dashboard',
+  selectEvent: '/select-event',
+  changePassword: '/user/security',
+  users: '/user',
+  inventory: '/inventory',
+  sales: '/sales',
+  reports: '/reports',
+  shops: '/shops',
+  shifts: '/shifts',
+  events: '/events',
+  billing: '/billing',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];
 
-/** Normalises a pathname for comparisons ("/dashboard" and "/dashboard/" are the same page). */
+/** Canonical form for comparisons: always ends with "/" ("/dashboard" ≡ "/dashboard/"). */
 export const normalizePath = (p: string) => (p.endsWith('/') ? p : `${p}/`);
+
+/** Same page? */
+export const isSamePath = (a: string, b: string) => normalizePath(a) === normalizePath(b);
+
+/** Is `pathname` `base` or below it? Segment-aware: "/user" never matches "/users". */
+export const isWithinPath = (pathname: string, base: string) => normalizePath(pathname).startsWith(normalizePath(base));

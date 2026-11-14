@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/core/auth';
 import { ApiError } from '@/core/api';
 import { ROUTES, STORAGE_KEYS } from '@/core/config';
@@ -9,7 +8,6 @@ import { ROUTES, STORAGE_KEYS } from '@/core/config';
 /** All login-form state and side effects; the component only renders. */
 export function useLoginForm() {
   const { login } = useAuth();
-  const router = useRouter();
   const passwordRef = useRef<HTMLInputElement>(null);
 
   const [username, setUsername] = useState('');
@@ -38,8 +36,9 @@ export function useLoginForm() {
       const user = await login(username.trim(), password);
       if (rememberMe) localStorage.setItem(STORAGE_KEYS.rememberedUsername, user.username);
       else localStorage.removeItem(STORAGE_KEYS.rememberedUsername);
-      // ProtectedRoute sends must-reset users to the change-password page.
-      router.replace(user.mustResetPassword ? ROUTES.changePassword : ROUTES.dashboard);
+      // Full navigation (not router.replace) so the legacy Redux store re-reads the
+      // new session on load (phase 1). Next stop is event selection, as before.
+      window.location.assign(user.mustResetPassword ? ROUTES.changePassword : ROUTES.selectEvent);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Login failed. Please try again.');
       setSubmitting(false);

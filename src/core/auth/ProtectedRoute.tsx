@@ -2,7 +2,7 @@
 
 import { useEffect, type ComponentType, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { ROUTES, normalizePath } from '@/core/config';
+import { ROUTES, isSamePath } from '@/core/config';
 import { FullPageSpinner, AccessDenied } from '@/shared/ui';
 import { useAuth, useHasPermission, type PermissionRequirement } from './hooks';
 
@@ -25,9 +25,9 @@ export function ProtectedRoute({ children, permission, fallback }: ProtectedRout
   const { isReady, isAuthenticated, user } = useAuth();
   const allowed = useHasPermission(permission);
   const router = useRouter();
-  const pathname = normalizePath(usePathname());
+  const pathname = usePathname();
 
-  const mustReset = !!user?.mustResetPassword && pathname !== ROUTES.changePassword;
+  const mustReset = !!user?.mustResetPassword && !isSamePath(pathname, ROUTES.changePassword);
 
   useEffect(() => {
     if (!isReady) return;

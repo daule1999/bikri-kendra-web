@@ -4,15 +4,15 @@ import { ROUTES } from '@/core/config';
 import { AppShell } from '@/layouts/app-shell';
 import { ButtonLink, EmptyState } from '@/shared/ui';
 
-/** Unmigrated modules land here (Cloudflare serves 404.html for unknown paths). */
+/** Unknown URLs land here (Cloudflare serves 404.html). */
 export default function NotFound() {
   return (
     <AppShell>
       <div className="mx-auto max-w-xl py-10">
         <EmptyState
-          icon="clock"
-          title="Coming soon"
-          description="This module hasn't been moved to the new app yet."
+          icon="info"
+          title="Page not found"
+          description="This page doesn't exist or has moved."
           action={<ButtonLink href={ROUTES.dashboard} variant="secondary" size="sm">← Back to Dashboard</ButtonLink>}
         />
       </div>
