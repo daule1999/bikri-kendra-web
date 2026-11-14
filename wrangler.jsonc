@@ -14,7 +14,7 @@
   },
   "workers_dev": false,
 
-  // Local preview reads BACKEND_URL from .dev.vars (see .dev.vars.example).
+  // BACKEND_URL is never committed: local = .dev.vars, deployed = Cloudflare secret.
   "vars": { "APP_ENV": "local" },
 
   // ── Per-environment (routes and vars are NOT inherited) ─────────────────
@@ -22,21 +22,16 @@
   "env": {
     "production": {
       "name": "bikri-kendra",            // keeps the Worker that's live today
-      "routes": [{ "pattern": "pos.bikri-kendra.org", "custom_domain": true }],
-      "vars": {
-        "APP_ENV": "production",
-        // Named Cloudflare Tunnel → Traefik :8091 on the backend host.
-        "BACKEND_URL": "https://api.bikri-kendra.org"
-      }
+      // Domain is not committed: scripts/deploy.sh passes --domain from .deploy.env / CI secret.
+      // BACKEND_URL is a Cloudflare *secret*, not committed here:
+      //   scripts/set-backend-url.sh production <url>
+      "vars": { "APP_ENV": "production" }
     },
     "qa": {
       "name": "bikri-kendra-qa",
-      "routes": [{ "pattern": "qa-pos.bikri-kendra.org", "custom_domain": true }],
-      "vars": {
-        "APP_ENV": "qa",
-        // Public HTTPS origin of the QA backend gateway.
-        "BACKEND_URL": ""
-      }
+      // Domain is not committed: scripts/deploy.sh passes --domain from .deploy.env / CI secret.
+      // BACKEND_URL is a Cloudflare *secret*: scripts/set-backend-url.sh qa <url>
+      "vars": { "APP_ENV": "qa" }
     }
   }
 }

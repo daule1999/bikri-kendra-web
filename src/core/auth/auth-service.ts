@@ -2,7 +2,7 @@ import { CORE_ENDPOINTS, configureHttpClient, http } from '@/core/api';
 import { SESSION_TIMING } from '@/core/config';
 import { activeEventStore } from '@/core/tenant/active-event-store';
 import { sessionStore } from './session-store';
-import { getTokenExpiryMs, isTokenExpired } from './token';
+import { decodeJwtPayload, getTokenExpiryMs, isTokenExpired } from './token';
 import type { Session } from './types';
 
 /** Shape returned by auth-svc /login. */
@@ -16,6 +16,15 @@ interface LoginResponse {
 
 interface RefreshResponse { accessToken: string; refreshToken?: string }
 
+/** Fallback when the login body has no role: read it from the JWT claims. */
+function roleFromToken(token: string): string | undefined {
+  const c = decodeJwtPayload(token) as Record<string, unknown> | null;
+  const v = c?.role ?? c?.roles ?? c?.authorities;
+  const first = Array.isArray(v) ? v[0] : v;
+  const r = typeof first === 'string' ? first : (first as { authority?: string } | undefined)?.authority;
+  return r || undefined;
+}
+
 let refreshInFlight: Promise<boolean> | null = null;
 
 export const authService = {
@@ -25,7 +34,7 @@ export const authService = {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
       username,
-      role: data.role || data.roles?.[0] || 'USER',
+      role: data.role || data.roles?.[0] || roleFromToken(data.accessToken) || 'USER',
       mustResetPassword: data.mustResetPassword === true,
     };
     sessionStore.set(session);
@@ -61,6 +70,24 @@ export const authService = {
     if (remaining > SESSION_TIMING.refreshThresholdMs) return;
     const ok = await authService.refresh();
     if (!ok && isTokenExpired(session.accessToken)) authService.logout();
+  },
+
+  /**
+   * Same as EventManagement's dashboard: the authoritative role comes from
+   * GET /users/{username} (`roles[0]`), not the login body. Updates the session
+   * so sidebar, dashboard and guards re-evaluate.
+   */
+  async syncRole(): Promise<void> {
+    const session = sessionStore.get();
+    if (!session) return;
+    try {
+      const user = await http.get<{ roles?: unknown[] }>(CORE_ENDPOINTS.userByUsername(session.username));
+      const first = Array.from(user?.roles ?? [])[0];
+      const role = first == null ? '' : String(typeof first === 'object' ? (first as { name?: string }).name ?? '' : first);
+      if (role && role !== session.role) sessionStore.update({ role });
+    } catch {
+      /* keep the role we already have */
+    }
   },
 
   logout() {

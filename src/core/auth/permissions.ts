@@ -46,11 +46,17 @@ export const PERMISSION_ROLES: Record<Permission, RoleSet> = {
   'printer:use': '*',
 };
 
+/** Tolerates 'ROLE_ADMIN', 'admin', ' Admin ' etc. so backend formatting can't hide pages. */
+export function normalizeRole(role: string | null | undefined): string {
+  return (role ?? '').trim().toUpperCase().replace(/^ROLE[_:]/, '');
+}
+
 /** Resolves the full permission set for a role. */
-export function permissionsForRole(role: Role | null | undefined): ReadonlySet<Permission> {
+export function permissionsForRole(rawRole: Role | null | undefined): ReadonlySet<Permission> {
+  const role = normalizeRole(rawRole);
   if (!role) return new Set();
   const granted = (Object.entries(PERMISSION_ROLES) as [Permission, RoleSet][])
-    .filter(([, roles]) => roles === '*' || roles.includes(role))
+    .filter(([, roles]) => roles === '*' || (roles as readonly string[]).includes(role))
     .map(([permission]) => permission);
   return new Set(granted);
 }

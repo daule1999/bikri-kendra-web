@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!session) return;
     void authService.refreshIfStale();
+    void authService.syncRole();
     const timer = setInterval(() => void authService.refreshIfStale(), SESSION_TIMING.refreshCheckIntervalMs);
     const onVisible = () => { if (document.visibilityState === 'visible') void authService.refreshIfStale(); };
     document.addEventListener('visibilitychange', onVisible);

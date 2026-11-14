@@ -1,18 +1,12 @@
 #!/usr/bin/env bash
-# Change BACKEND_URL for one environment in wrangler.jsonc.
-#   scripts/set-backend-url.sh <qa|production> <https://url>
+# Set BACKEND_URL for one environment as a Cloudflare SECRET (never written to git).
+#   scripts/set-backend-url.sh <qa|production> [https://url]   (prompts if url omitted)
+# Secrets survive `wrangler deploy`, so no redeploy of code is needed; the change is live in seconds.
 set -euo pipefail
 ENV="${1:-}"; URL="${2:-}"
-case "$ENV" in qa|production) ;; *) echo "usage: $0 <qa|production> <https://url>" >&2; exit 2 ;; esac
+case "$ENV" in qa|production) ;; *) echo "usage: $0 <qa|production> [https://url]" >&2; exit 2 ;; esac
+if [[ -z "$URL" ]]; then read -r -p "Backend URL for $ENV (https://host): " URL; fi
 [[ "$URL" =~ ^https://[^/]+$ ]] || { echo "✖ URL must be https://host with no path or trailing slash" >&2; exit 2; }
 cd "$(dirname "$0")/.."
-python3 - "$ENV" "$URL" <<'PY'
-import re, sys
-env, url = sys.argv[1], sys.argv[2]
-s = open('wrangler.jsonc').read()
-block = re.search(r'"%s"\s*:\s*\{.*?"BACKEND_URL"\s*:\s*"[^"]*"' % env, s, re.S)
-if not block: sys.exit(f'✖ BACKEND_URL for "{env}" not found in wrangler.jsonc')
-new = re.sub(r'("BACKEND_URL"\s*:\s*")[^"]*(")', r'\g<1>%s\g<2>' % url, block.group(0))
-open('wrangler.jsonc', 'w').write(s[:block.start()] + new + s[block.end():])
-PY
-echo "✓ $ENV BACKEND_URL = $URL  (commit it, then redeploy $ENV)"
+printf '%s' "$URL" | npx wrangler secret put BACKEND_URL --env "$ENV"
+echo "✓ $ENV BACKEND_URL updated (secret). Verify: curl -s <site>/api/health  → backendConfigured: true"

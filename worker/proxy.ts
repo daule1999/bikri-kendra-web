@@ -81,7 +81,7 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
     });
   }
   if (!env.BACKEND_URL) {
-    return json(503, { error: 'Backend not configured', environment: env.APP_ENV, hint: 'Set BACKEND_URL for this environment in wrangler.jsonc' });
+    return json(503, { error: 'Backend not configured', environment: env.APP_ENV, hint: 'Set the BACKEND_URL secret: scripts/set-backend-url.sh <env>' });
   }
 
   const custom = CUSTOM_HANDLERS[`${request.method.toUpperCase()} ${url.pathname.replace(/\/+$/, '')}`];

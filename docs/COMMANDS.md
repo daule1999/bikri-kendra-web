@@ -1,36 +1,69 @@
 # Bikri Kendra — Command Runbook
 
 All commands run from the repo root: `cd bikri-kendra-cloudflare`.
-UAT = the `qa` environment → https://qa-pos.bikri-kendra.org
-PROD = the `production` environment → https://pos.bikri-kendra.org
+UAT = the `qa` environment → https://<qa-domain>
+PROD = the `production` environment → https://<prod-domain>
+
+Domains are not committed. Create `.deploy.env` once (gitignored; copy `.deploy.env.example`)
+with `DEPLOY_DOMAIN_PRODUCTION` and `DEPLOY_DOMAIN_QA`; `scripts/deploy.sh` passes them as
+`wrangler deploy --domain`. In GitHub, add a `DEPLOY_DOMAIN` secret to each environment
+(`qa`, `production`) alongside `CLOUDFLARE_API_TOKEN`.
 
 ---
 
-## 1. Change the backend URL
+## 0. Run locally (and on your local network)
+
+Runs the built site plus the real Worker (`/api/*` proxy) on your Mac.
 
 ```bash
-# 1. Set it (qa or production)
-scripts/set-backend-url.sh production https://api.bikri-kendra.org
-scripts/set-backend-url.sh qa         https://api-qa.bikri-kendra.org
+cp .dev.vars.example .dev.vars     # first time only; set BACKEND_URL inside
+                                   #   http://localhost:8091         (local Traefik — check `podman ps`)
 
-# 2. Check what changed
-git diff wrangler.jsonc
+npm install
+npm run build
+npx wrangler dev --ip 0.0.0.0 --port 8787
+```
 
-# 3. Commit and push
-git add wrangler.jsonc
-git commit -m "chore: point <env> at <new url>"
-git push
+- On the Mac: http://localhost:8787
+- From a phone/laptop on the same Wi-Fi: `http://<mac-ip>:8787`
+  (get the IP with `ipconfig getifaddr en0`; allow incoming connections if macOS asks)
+- Port 8787 avoids the old EventManagement UI on :3000.
+- Over plain `http://<ip>` browsers disable secure-context features (clipboard, camera, service workers).
+- Localhost-only shortcut: `npm run preview` (build + `wrangler dev`).
+- Fast UI iteration without the Worker: `npm run dev` (port 3000; `/api/*` won't work).
 
-# 4. Redeploy that environment so the Worker picks it up (section 3)
+---
 
-# 5. Verify
-curl -s https://pos.bikri-kendra.org/api/health      # PROD
-curl -s https://qa-pos.bikri-kendra.org/api/health   # UAT
+## 1. Set / change the backend URL (kept out of git)
+
+`BACKEND_URL` is a Cloudflare **secret** per environment — it is not in
+`wrangler.jsonc`, the repo, or the GitHub workflow.
+
+```bash
+scripts/set-backend-url.sh production https://<prod-backend>
+scripts/set-backend-url.sh qa         https://<qa-backend>
+# or omit the URL to be prompted; equivalent to:
+#   npx wrangler secret put BACKEND_URL --env production
+
+# Verify (no redeploy needed — secrets survive deploys and apply immediately)
+curl -s https://<prod-domain>/api/health      # PROD
+curl -s https://<qa-domain>/api/health   # UAT
 # expect "backendConfigured": true
 ```
 
-> Change it only in `wrangler.jsonc`, not in the Cloudflare dashboard —
-> the next deploy overwrites dashboard values.
+Local runs read it from `.dev.vars` (gitignored).
+
+### First-time move from the old committed var → secret (do in this order)
+
+Cloudflare refuses to create a secret while a plain var with the same name still
+exists, so deploy first (the new config no longer defines the var), then set the secret.
+Between the two steps `/api/*` returns 503 — run them back to back.
+
+```bash
+npm run deploy:prod          # a deploy that no longer defines the var (needs a v* tag, as before)
+scripts/set-backend-url.sh production http://localhost:8080
+curl -s https://<prod-domain>/api/health   # expect backendConfigured: true
+```
 
 ---
 
@@ -121,8 +154,8 @@ DRY_RUN=1 scripts/deploy.sh production v1.2.0
 ## 4. Check what's running
 
 ```bash
-curl -s https://pos.bikri-kendra.org/api/health      # PROD → "version":"v1.2.0"
-curl -s https://qa-pos.bikri-kendra.org/api/health   # UAT
+curl -s https://<prod-domain>/api/health      # PROD → "version":"v1.2.0"
+curl -s https://<qa-domain>/api/health   # UAT
 
 npx wrangler deployments list --env production
 npx wrangler deployments list --env qa

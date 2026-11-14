@@ -5,8 +5,8 @@ Two independent Workers built from the same code and one `wrangler.jsonc`:
 | | QA | Production |
 |---|---|---|
 | Worker | `bikri-kendra-qa` | `bikri-kendra` |
-| URL | https://qa-pos.bikri-kendra.org | https://pos.bikri-kendra.org |
-| Backend | `env.qa.vars.BACKEND_URL` | `env.production.vars.BACKEND_URL` |
+| URL | https://<qa-domain> | https://<prod-domain> |
+| Backend | secret `BACKEND_URL` (--env qa) | secret `BACKEND_URL` (--env production) |
 | What can go there | any branch, any tag | only release tags `vMAJOR.MINOR.PATCH` |
 | Automatic trigger | push to `develop` | push of a `v*.*.*` tag |
 | UI marker | orange **QA · <version>** badge | none (version in login footer) |
@@ -52,7 +52,7 @@ Production through that button only accepts a `v*` tag (the script refuses anyth
 
 | Name | Where set | Notes |
 |---|---|---|
-| `BACKEND_URL` | `wrangler.jsonc` → `env.<name>.vars` | Public HTTPS origin of that environment's gateway |
+| `BACKEND_URL` | Cloudflare secret (`scripts/set-backend-url.sh`) — not in git | Public HTTPS origin of that environment's gateway |
 | `APP_ENV` | `wrangler.jsonc` → `env.<name>.vars` | `qa` / `production` |
 | `APP_VERSION`, `GIT_SHA` | injected by `scripts/deploy.sh` (`--var`) | don't set manually |
 | `NEXT_PUBLIC_APP_ENV/VERSION/GIT_SHA` | exported by `scripts/deploy.sh` at build | baked into static JS — never secrets |
@@ -73,5 +73,5 @@ Local preview: `cp .dev.vars.example .dev.vars`, edit, `npm run preview`.
    (Settings → Environments). On `production`, add *Required reviewers* so a
    pushed tag waits for approval before going live.
 4. **Branches** — create `develop`; protect `main`.
-5. Fill both `BACKEND_URL`s in `wrangler.jsonc`.
-6. First QA deploy creates `qa-pos.bikri-kendra.org` (DNS + certificate) automatically.
+5. Set both `BACKEND_URL` secrets with `scripts/set-backend-url.sh`.
+6. First QA deploy creates `<qa-domain>` (DNS + certificate) automatically.

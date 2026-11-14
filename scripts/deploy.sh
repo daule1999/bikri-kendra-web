@@ -36,6 +36,12 @@ elif [[ -n "$(git status --porcelain)" && "${ALLOW_DIRTY:-0}" != "1" ]]; then
   exit 1
 fi
 
+# Custom domain (kept out of git): DEPLOY_DOMAIN env var (CI secret), or
+# DEPLOY_DOMAIN_PRODUCTION / DEPLOY_DOMAIN_QA in the gitignored .deploy.env file.
+[[ -f .deploy.env ]] && set -a && source .deploy.env && set +a
+if [[ "$ENVIRONMENT" == "production" ]]; then DOMAIN="${DEPLOY_DOMAIN:-${DEPLOY_DOMAIN_PRODUCTION:-}}"; else DOMAIN="${DEPLOY_DOMAIN:-${DEPLOY_DOMAIN_QA:-}}"; fi
+[[ -n "$DOMAIN" ]] || { echo "✖ No domain. Set DEPLOY_DOMAIN_$(echo "$ENVIRONMENT" | tr a-z A-Z) in .deploy.env (see .deploy.env.example)." >&2; exit 1; }
+
 # Version label: the tag if HEAD is tagged, otherwise <branch>@<sha>.
 VERSION="${TAG:-${BRANCH//\//-}@${SHORT_SHA}}"
 [[ -n "$(git status --porcelain)" ]] && VERSION="${VERSION}-dirty"
@@ -49,6 +55,7 @@ npm run build
 
 npx wrangler deploy ${DRY_RUN:+--dry-run} \
   --env "$ENVIRONMENT" \
+  --domain "$DOMAIN" \
   --tag "$VERSION" \
   --message "$VERSION ($SHORT_SHA) from ${BRANCH}" \
   --var "APP_VERSION:$VERSION" \
