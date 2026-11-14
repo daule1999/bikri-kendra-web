@@ -4,6 +4,7 @@ name: Deploy
 #   UAT (qa)    → any branch or any tag
 #   production  → a release tag vMAJOR.MINOR.PATCH only
 # All configuration comes from the GitHub *Environment* of the same name (qa / production).
+# Each value is read from a secret first, then falls back to a variable of the same name.
 on:
   workflow_dispatch:
     inputs:
@@ -31,6 +32,19 @@ jobs:
       TARGET: ${{ inputs.environment }}
       REF: ${{ inputs.ref }}
     steps:
+      - name: Check required configuration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN || vars.DEPLOY_DOMAIN }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL || vars.BACKEND_URL }}
+        run: |
+          missing=""
+          for n in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID DEPLOY_DOMAIN BACKEND_URL; do
+            [ -n "${!n}" ] || missing="$missing $n"
+          done
+          if [ -n "$missing" ]; then echo "::error::Missing in environment '$TARGET' (as secret or variable):$missing"; exit 1; fi
+
       - name: Validate ref for target
         run: |
           if [ "$TARGET" = production ] && ! [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -56,23 +70,23 @@ jobs:
       - name: Deploy
         env:
           CI_DEPLOY: "1"
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN || vars.DEPLOY_DOMAIN }}
           GITHUB_REF_NAME: ${{ inputs.ref }}
           # build-time flags (baked into the browser bundle)
-          NEXT_PUBLIC_ENCRYPT_API: ${{ vars.ENCRYPT_API }}
-          NEXT_PUBLIC_API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY }}
-          NEXT_PUBLIC_ENABLE_LOGS: ${{ vars.ENABLE_LOGS }}
+          NEXT_PUBLIC_ENCRYPT_API: ${{ vars.ENCRYPT_API || secrets.ENCRYPT_API }}
+          NEXT_PUBLIC_API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY || vars.API_ENCRYPTION_KEY }}
+          NEXT_PUBLIC_ENABLE_LOGS: ${{ vars.ENABLE_LOGS || secrets.ENABLE_LOGS }}
         run: scripts/deploy.sh "$TARGET"
 
       # Secrets are set AFTER deploy (a plain var of the same name must be gone first) and are idempotent.
       - name: Set Worker secrets
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          BACKEND_URL: ${{ secrets.BACKEND_URL }}
-          API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL || vars.BACKEND_URL }}
+          API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY || vars.API_ENCRYPTION_KEY }}
         run: |
           printf '%s' "$BACKEND_URL" | npx wrangler secret put BACKEND_URL --env "$TARGET"
           if [ -n "$API_ENCRYPTION_KEY" ]; then
@@ -81,7 +95,7 @@ jobs:
 
       - name: Smoke test
         env:
-          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN }}
+          DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN || vars.DEPLOY_DOMAIN }}
         run: |
           sleep 10
           curl -fsS "https://$DEPLOY_DOMAIN/api/health" | tee /dev/stderr | grep -q '"backendConfigured":true'
