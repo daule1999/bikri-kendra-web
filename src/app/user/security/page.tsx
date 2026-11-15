@@ -128,14 +128,12 @@ export default function SecurityPage() {
 
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
       const caller = localStorage.getItem('username');
 
       const response = await apiFetch(`/api/users/${username}/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
           ...(caller && { 'X-Username': caller }),
         },
         body: JSON.stringify({ oldPassword, newPassword, confirmPassword }),

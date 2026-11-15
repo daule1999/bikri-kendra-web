@@ -55,7 +55,8 @@ Production through that button only accepts a `v*` tag (the script refuses anyth
 | `BACKEND_URL` | Cloudflare secret (`scripts/set-backend-url.sh`) — not in git | Public HTTPS origin of that environment's gateway |
 | `APP_ENV` | `wrangler.jsonc` → `env.<name>.vars` | `qa` / `production` |
 | `APP_VERSION`, `GIT_SHA` | injected by `scripts/deploy.sh` (`--var`) | don't set manually |
-| `NEXT_PUBLIC_APP_ENV/VERSION/GIT_SHA` | exported by `scripts/deploy.sh` at build | baked into static JS — never secrets |
+| `ENCRYPT_API`, `ENABLE_LOGS` | GitHub variables → `--var` at deploy | served to the browser at runtime by the Worker (build is environment-free) |
+| `SESSION_SECRET`, `API_ENCRYPTION_KEY` | GitHub secrets → Worker secrets | seal session cookies / payload key |
 | secrets (future) | `npx wrangler secret put NAME --env qa` | separate per environment |
 
 Keep each variable in **one** place (file *or* dashboard): `wrangler deploy` treats

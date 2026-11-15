@@ -12,3 +12,4 @@ export { EmptyState, AccessDenied } from './EmptyState';
 export { TONES, toneClass } from './tone';
 export type { Tone } from './tone';
 export { EnvironmentBadge } from './EnvironmentBadge';
+export { EnvironmentStamp } from './EnvironmentStamp';

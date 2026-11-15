@@ -1,6 +1,7 @@
 import type { Env } from './types';
 import { handleApi } from './proxy';
-import { resolveDynamicAsset } from './dynamic-routes';
+import { injectRuntimeConfig } from './runtime-config';
+import { legacyDetailRedirect } from './legacy-redirects';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -8,12 +9,9 @@ export default {
     const { pathname } = url;
     if (pathname === '/api' || pathname.startsWith('/api/')) return handleApi(request, env);
 
-    const placeholder = resolveDynamicAsset(pathname);
-    if (placeholder) {
-      const rewritten = new URL(placeholder + url.search, url);
-      const res = await env.ASSETS.fetch(new Request(rewritten.toString(), request));
-      if (res.status !== 404) return res;
-    }
-    return env.ASSETS.fetch(request);
+    const redirect = legacyDetailRedirect(pathname, url.search);
+    if (redirect) return Response.redirect(new URL(redirect, url).toString(), 302);
+
+    return injectRuntimeConfig(await env.ASSETS.fetch(request), env);
   },
 };

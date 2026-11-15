@@ -8,7 +8,11 @@ export interface Env {
   APP_ENV?: string;
   /** 'true' = require encrypted /api payloads (set per environment from the env file). */
   ENCRYPT_API?: string;
-  /** Secret passphrase for payload encryption; must equal NEXT_PUBLIC_API_ENCRYPTION_KEY at build. */
+  /** Secret used to seal the session cookies (long random string). */
+  SESSION_SECRET?: string;
+  /** 'false' = silence browser console.log/info/debug (default: allowed). */
+  ENABLE_LOGS?: string;
+  /** Secret passphrase for payload encryption; served to the browser at runtime with the page config. */
   API_ENCRYPTION_KEY?: string;
   /** Git tag or branch@sha this deployment was built from — injected by scripts/deploy.sh. */
   APP_VERSION?: string;

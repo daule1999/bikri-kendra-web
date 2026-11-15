@@ -6,10 +6,9 @@ import { ApiError, extractErrorMessage } from './api-error';
  * Centralised HTTP client. The ONLY place the app calls fetch().
  *
  * - baseURL: same-origin `/api` (the Worker proxy hides the real backend)
- * - injects Authorization + X-Event-Id + X-Request-Id on every call
+ * - injects X-Event-Id + X-Request-Id on every call (credentials travel as HttpOnly cookies)
  * - parses JSON / text / empty responses automatically
  * - throws a typed ApiError for non-2xx
- * - on 401: one single-flight token refresh, then retries the call once
  * - emits activity events so a global loader can subscribe
  *
  * The auth layer plugs in through `configureHttpClient` so this module has no
@@ -23,22 +22,18 @@ export interface RequestOptions {
   query?: Record<string, QueryValue | QueryValue[]>;
   headers?: Record<string, string>;
   signal?: AbortSignal;
-  /** Skip auth header + refresh logic (login, refresh). */
+  /** Don't treat a 401 as 'session lost' (login, session check). */
   anonymous?: boolean;
 }
 
 interface HttpClientHooks {
-  getAccessToken: () => string | null;
   getEventId: () => string | null;
-  /** Returns true when a new token was obtained. */
-  refreshSession: () => Promise<boolean>;
+  /** The session is gone (the Worker already tried to refresh it). */
   onUnauthorized: () => void;
 }
 
 let hooks: HttpClientHooks = {
-  getAccessToken: () => null,
   getEventId: () => null,
-  refreshSession: async () => false,
   onUnauthorized: () => {},
 };
 
@@ -88,16 +83,12 @@ async function parseBody(response: Response): Promise<unknown> {
   return text;
 }
 
-async function send<T>(method: Method, path: string, body: unknown, options: RequestOptions = {}, isRetry = false): Promise<T> {
+async function send<T>(method: Method, path: string, body: unknown, options: RequestOptions = {}): Promise<T> {
   const id = requestId();
   const headers: Record<string, string> = { Accept: 'application/json', [HEADERS.requestId]: id, ...options.headers };
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
 
-  if (!options.anonymous) {
-    const token = hooks.getAccessToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
   const eventId = hooks.getEventId();
   if (eventId) headers[HEADERS.eventId] = eventId;
 
@@ -117,12 +108,8 @@ async function send<T>(method: Method, path: string, body: unknown, options: Req
   }
   bump(-1);
 
-  if (response.status === 401 && !options.anonymous) {
-    if (!isRetry && (await hooks.refreshSession())) {
-      return send<T>(method, path, body, options, true);
-    }
-    hooks.onUnauthorized();
-  }
+  // Cookie session: the Worker refreshes expiring tokens itself, so a 401 means the session is really gone.
+  if (response.status === 401 && !options.anonymous) hooks.onUnauthorized();
 
   const data = await parseBody(response);
   if (!response.ok) {

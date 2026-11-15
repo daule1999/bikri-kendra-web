@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { APP, BUILD_INFO, isProduction } from '@/core/config';
-import { EnvironmentBadge, Icon } from '@/shared/ui';
+import { APP } from '@/core/config';
+import { EnvironmentStamp, Icon } from '@/shared/ui';
 
 /** Branded card used by login (and later: forgot/reset password). */
 export function AuthCard({ title, children }: { title: string; children: ReactNode }) {
@@ -24,7 +24,7 @@ export function AuthCard({ title, children }: { title: string; children: ReactNo
         <footer className="border-t border-line px-8 py-4 text-center text-xs text-fg-faint">
           © {new Date().getFullYear()} {APP.org} · {APP.name}
           <span className="mt-2 flex items-center justify-center gap-2">
-            {isProduction ? <span>{BUILD_INFO.version}</span> : <EnvironmentBadge />}
+            <EnvironmentStamp />
           </span>
         </footer>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
-import { useLegacyParams } from '@/lib/routeParams';
+import { detailRoutes } from '@/core/config';
+import { useQueryId } from '@/lib/routeParams';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
@@ -35,10 +36,9 @@ const statusBadge: Record<string, string> = {
 const MAIN_ONLY_TYPES = ['IN', 'OUT', 'ADJUSTMENT'];
 
 export default function MovementDetailPage() {
-  const params = useLegacyParams();
   const router = useRouter();
   const { products, shops, stocks, salesRecords } = useInventory();
-  const id = params?.id as string;
+  const id = useQueryId('id');
 
   const [canView, setCanView] = useState<boolean | null>(null);
   const [canModify, setCanModify] = useState(false);
@@ -345,7 +345,7 @@ export default function MovementDetailPage() {
             {related.map((r) => (
               <div
                 key={r.id}
-                onClick={() => router.push(`/inventory/movements/${r.id}`)}
+                onClick={() => router.push(detailRoutes.movement(r.id))}
                 className="p-3 flex justify-between items-center hover:bg-gray-50 cursor-pointer text-sm"
               >
                 <div>

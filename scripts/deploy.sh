@@ -54,14 +54,20 @@ VERSION="${TAG:-${BRANCH//\//-}@${SHORT_SHA}}"
 
 echo "▶ Deploying $VERSION to $ENVIRONMENT"
 
-# Per-environment flags (encryption, console logging).
-# In CI these come from GitHub Environment secrets/variables; locally (dry run) from the file.
+# Runtime flags (ENCRYPT_API, ENABLE_LOGS) are NOT baked into the build: they go to the Worker as
+# vars and the Worker injects them into every page. In CI they come from the GitHub Environment;
+# for a local dry run they come from .env.<environment>.
 if [[ -f ".env.$ENVIRONMENT" && -z "${GITHUB_ACTIONS:-}" ]]; then set -a; source ".env.$ENVIRONMENT"; set +a; fi
 
-export NEXT_PUBLIC_APP_ENV="$ENVIRONMENT"
-export NEXT_PUBLIC_APP_VERSION="$VERSION"
-export NEXT_PUBLIC_GIT_SHA="$SHA"
-npm run build
+# BUILD ONCE: the static site contains no environment-specific values, so the same out/ is
+# deployed to QA and production. CI restores out/ from a cache keyed by commit SHA; we only
+# build when it is absent (or on a dry run, which always validates a fresh build).
+if [[ -n "${DRY_RUN:-}" || ! -f out/index.html ]]; then
+  echo "▶ Building"
+  npm run build
+else
+  echo "▶ Reusing existing build in out/ (built once for $SHORT_SHA)"
+fi
 
 npx wrangler deploy ${DRY_RUN:+--dry-run} \
   --env "$ENVIRONMENT" \
@@ -70,6 +76,7 @@ npx wrangler deploy ${DRY_RUN:+--dry-run} \
   --message "$VERSION ($SHORT_SHA) from ${BRANCH}" \
   --var "APP_VERSION:$VERSION" \
   --var "GIT_SHA:$SHA" \
-  --var "ENCRYPT_API:${NEXT_PUBLIC_ENCRYPT_API:-false}"
+  --var "ENCRYPT_API:${ENCRYPT_API:-false}" \
+  --var "ENABLE_LOGS:${ENABLE_LOGS:-true}"
 
 if [[ -n "${DRY_RUN:-}" ]]; then echo "✓ dry run OK for $ENVIRONMENT ($VERSION)"; else echo "✓ $ENVIRONMENT is now running $VERSION"; fi

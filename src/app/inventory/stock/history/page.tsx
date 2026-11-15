@@ -1,5 +1,6 @@
 'use client';
 
+import { detailRoutes } from '@/core/config';
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiClient } from '@/lib/api';
@@ -178,7 +179,7 @@ function InventoryMovementHistoryContent() {
               rows.map((row, idx) => (
                 <tr
                   key={row.id}
-                  onClick={() => router.push(`/inventory/movements/${row.id}`)}
+                  onClick={() => router.push(detailRoutes.movement(row.id))}
                   className="hover:bg-indigo-50/50 cursor-pointer transition-colors"
                 >
                   <td className="p-3 text-sm text-gray-500">{page * PAGE_SIZE + idx + 1}</td>

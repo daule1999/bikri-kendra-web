@@ -2,6 +2,7 @@
 
 import { useDispatch } from 'react-redux';
 import { purgeSession } from '@/store/slices/authSlice';
+import { authService } from '@/core/auth/auth-service';
 
 export default function LogoutButton() {
   const dispatch = useDispatch();
@@ -13,6 +14,7 @@ export default function LogoutButton() {
     // Dispatching it directly — instead of the old manual localStorage.removeItem
     // calls that never touched Redux or cookies — is what makes the new
     // middleware-based redirect work correctly right after logout.
+    authService.logout();   // clear the HttpOnly session cookie
     dispatch(purgeSession());
 
     window.location.href = '/';

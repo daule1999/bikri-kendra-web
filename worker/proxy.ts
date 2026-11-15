@@ -1,23 +1,24 @@
-import type { Env, HandlerContext } from './types';
+import type { Env, HandlerContext, RouteHandler } from './types';
 import { resolveRule } from './proxy-rules';
 import { CUSTOM_HANDLERS } from './handlers';
+import { AuthState, authedFetch, handleAuthRoutes } from './auth';
 import { ENCRYPTED_HEADER, decryptText, encryptText } from '../src/core/crypto/payload-crypto';
 
-/** Request headers the browser may pass through to the backend. Everything else (cookies etc.) is dropped. */
-const FORWARDED_REQUEST_HEADERS = ['authorization', 'content-type', 'accept', 'x-event-id', 'x-request-id'] as const;
+/** Request headers the browser may pass through to the backend. Everything else (cookies, Authorization) is dropped:
+ *  the Authorization header is built by the Worker from the sealed session. */
+const FORWARDED_REQUEST_HEADERS = ['content-type', 'accept', 'x-event-id', 'x-request-id'] as const;
 
 /** Upstream response headers we pass back to the browser. */
-const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'x-request-id', 'cache-control', 'x-new-access-token'] as const;
+const FORWARDED_RESPONSE_HEADERS = ['content-type', 'content-disposition', 'x-request-id', 'cache-control'] as const;
 
 const json = (status: number, body: Record<string, unknown>) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
 const backendOrigin = (env: Env) => (env.BACKEND_URL || '').replace(/\/+$/, '');
 
-function buildUpstreamHeaders(request: Request, includeAuth: boolean): Headers {
+function buildUpstreamHeaders(request: Request): Headers {
   const headers = new Headers();
   for (const name of FORWARDED_REQUEST_HEADERS) {
-    if (name === 'authorization' && !includeAuth) continue;
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
@@ -36,29 +37,26 @@ function sanitizeResponse(upstream: Response): Response {
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers });
 }
 
-/** Plain pass-through: same method, body and (allow-listed) headers. */
-async function forward(env: Env, request: Request, backendPath: string, search: string, includeAuth: boolean) {
+/** Plain pass-through: same method, body and (allow-listed) headers; Authorization comes from the session. */
+async function forward(env: Env, auth: AuthState, request: Request, backendPath: string, search: string, isPublic: boolean) {
   const hasBody = !['GET', 'HEAD'].includes(request.method.toUpperCase());
+  const body = hasBody ? await request.arrayBuffer() : undefined; // buffered so a 401 can be retried after refresh
+  const url = `${backendOrigin(env)}${backendPath}${search}`;
+  const init = { method: request.method, headers: buildUpstreamHeaders(request), body, redirect: 'manual' as const };
   try {
-    const upstream = await fetch(`${backendOrigin(env)}${backendPath}${search}`, {
-      method: request.method,
-      headers: buildUpstreamHeaders(request, includeAuth),
-      body: hasBody ? request.body : undefined,
-      redirect: 'manual',
-    });
-    return sanitizeResponse(upstream);
+    return sanitizeResponse(isPublic ? await fetch(url, init) : await authedFetch(env, auth, url, init));
   } catch (err) {
     console.error('[proxy] upstream unreachable', backendPath, err);
     return json(502, { error: 'Backend unreachable', path: backendPath });
   }
 }
 
-/** Backend caller handed to custom handlers (auth/event/request-id applied). */
-function makeBackendCaller(env: Env, request: Request): HandlerContext['backend'] {
+/** Backend caller handed to custom handlers (session auth/event/request-id applied). */
+function makeBackendCaller(env: Env, auth: AuthState, request: Request): HandlerContext['backend'] {
   return (backendPath, init = {}) => {
-    const headers = buildUpstreamHeaders(request, true);
+    const headers = buildUpstreamHeaders(request);
     headers.set('content-type', 'application/json');
-    return fetch(`${backendOrigin(env)}${backendPath}`, {
+    return authedFetch(env, auth, `${backendOrigin(env)}${backendPath}`, {
       method: init.method ?? 'GET',
       headers,
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
@@ -85,19 +83,42 @@ async function handleApiPlain(request: Request, env: Env): Promise<Response> {
     return json(503, { error: 'Backend not configured', environment: env.APP_ENV, hint: 'Set the BACKEND_URL secret: scripts/set-backend-url.sh <env>' });
   }
 
-  const custom = CUSTOM_HANDLERS[`${request.method.toUpperCase()} ${url.pathname.replace(/\/+$/, '')}`];
-  if (custom) {
-    try {
-      return sanitizeResponse(await custom({ request, env, url, backend: makeBackendCaller(env, request) }));
-    } catch (err) {
-      console.error('[proxy] handler failed', url.pathname, err);
-      return json(502, { error: 'Backend unreachable', path: url.pathname });
-    }
+  // CSRF: browsers cannot attach a custom header cross-site without a CORS preflight, which we never grant.
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase()) && request.headers.get('x-requested-with') !== 'bikri') {
+    return json(403, { error: 'Missing X-Requested-With header' });
   }
 
-  const match = resolveRule(url.pathname);
-  if (!match) return json(404, { error: 'Unknown API route', path: url.pathname });
-  return forward(env, request, match.backendPath, url.search, !match.rule.public);
+  const secure = url.protocol === 'https:';
+  const auth = await AuthState.from(request, env);
+  const finish = (res: Response) => auth.apply(res, env, secure);
+
+  const authRoute = await handleAuthRoutes(request, env, url, auth);
+  if (authRoute) return finish(authRoute);
+
+  const key = `${request.method.toUpperCase()} ${url.pathname.replace(/\/+$/, '')}`;
+  const custom = CUSTOM_HANDLERS[key] as RouteHandler | undefined;
+  const match = custom ? null : resolveRule(url.pathname);
+  if (!custom && !match) return json(404, { error: 'Unknown API route', path: url.pathname });
+  if (!auth.session && !match?.rule.public) return json(401, { error: 'Not authenticated' });
+
+  let res: Response;
+  if (custom) {
+    try {
+      res = sanitizeResponse(await custom({ request, env, url, backend: makeBackendCaller(env, auth, request) }));
+    } catch (err) {
+      console.error('[proxy] handler failed', url.pathname, err);
+      res = json(502, { error: 'Backend unreachable', path: url.pathname });
+    }
+  } else {
+    res = await forward(env, auth, request, match!.backendPath, url.search, !!match!.rule.public);
+  }
+
+  // The password change clears the "must reset" flag the session was created with.
+  if (auth.session?.mustResetPassword && res.ok && /^POST \/api\/users\/[^/]+\/change-password$/.test(key)) {
+    auth.session = { ...auth.session, mustResetPassword: false };
+    auth.changed = true;
+  }
+  return finish(res);
 }
 
 /**

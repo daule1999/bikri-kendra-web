@@ -6,6 +6,7 @@
  */
 export const CORE_ENDPOINTS = {
   login: '/login',
-  refresh: '/auth/refresh',
+  session: '/session',
+  logout: '/auth/logout',
   userByUsername: (username: string) => `/users/${encodeURIComponent(username)}`,
 } as const;

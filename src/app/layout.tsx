@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { APP } from '@/core/config';
-import { CONSOLE_GUARD_SCRIPT } from '@/core/config/console-guard';
+import { APP, RuntimeBootstrap } from '@/core/config';
 import { AuthProvider } from '@/core/auth';
 // PHASE 1 COMPAT providers used by ported pages
 import StoreProvider from '@/store/StoreProvider';
@@ -14,8 +13,8 @@ export const metadata: Metadata = { title: APP.title, description: APP.descripti
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <head>{CONSOLE_GUARD_SCRIPT && <script dangerouslySetInnerHTML={{ __html: CONSOLE_GUARD_SCRIPT }} />}</head>
       <body className="antialiased">
+        <RuntimeBootstrap />
         <AuthProvider>
           <ThemeProvider>
             <StoreProvider>

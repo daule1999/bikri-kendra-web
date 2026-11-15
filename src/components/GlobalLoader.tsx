@@ -12,7 +12,7 @@ export default function GlobalLoader() {
   // Synchronize token state with mount state
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setIsAuthReady(!!localStorage.getItem('accessToken'));
+      setIsAuthReady(localStorage.getItem('hasSession') === '1');
     }
   }, []);
 

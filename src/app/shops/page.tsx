@@ -1,5 +1,6 @@
 'use client';
 
+import { detailRoutes } from '@/core/config';
 import { useEffect, useState } from 'react';
 
 import AppLayout from '@/components/layout/AppLayout';
@@ -156,7 +157,7 @@ export default function ShopsPage() {
                   shops.map((shop) => (
                     <tr
                       key={shop.id}
-                      onClick={() => router.push(`/shops/${shop.id}`)}
+                      onClick={() => router.push(detailRoutes.shop(shop.id))}
                       className="hover:bg-blue-50/60 transition-colors cursor-pointer group"
                     >
                       <td className="p-4 text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">

@@ -1,5 +1,8 @@
 # Copy to .dev.vars for `npm run preview` (local Worker + /api proxy). Never commit .dev.vars.
 BACKEND_URL=http://localhost:8080
-# Local payload encryption (optional). Must match NEXT_PUBLIC_* in the env file used for `npm run build`.
+# Runtime flags served to the browser by the Worker (no rebuild needed to change them).
 ENCRYPT_API=false
 API_ENCRYPTION_KEY=
+ENABLE_LOGS=true
+# Seals the HttpOnly session cookies (any long random string; `openssl rand -base64 32`).
+SESSION_SECRET=change-me-local-only

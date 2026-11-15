@@ -38,9 +38,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
           DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN || vars.DEPLOY_DOMAIN }}
           BACKEND_URL: ${{ secrets.BACKEND_URL || vars.BACKEND_URL }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET || vars.SESSION_SECRET }}
         run: |
           missing=""
-          for n in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID DEPLOY_DOMAIN BACKEND_URL; do
+          for n in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID DEPLOY_DOMAIN BACKEND_URL SESSION_SECRET; do
             [ -n "${!n}" ] || missing="$missing $n"
           done
           if [ -n "$missing" ]; then echo "::error::Missing in environment '$TARGET' (as secret or variable):$missing"; exit 1; fi
@@ -67,6 +68,19 @@ jobs:
 
       - run: npm ci
 
+      # BUILD ONCE: the build has no environment-specific values, so the exact same out/ is
+      # reused for QA and production of the same commit (the Worker injects the runtime config).
+      - name: Restore build for this commit
+        id: build-cache
+        uses: actions/cache@v4
+        with:
+          path: out
+          key: site-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+
+      - name: Build (only if not cached)
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: npm run build
+
       - name: Deploy
         env:
           CI_DEPLOY: "1"
@@ -74,10 +88,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
           DEPLOY_DOMAIN: ${{ secrets.DEPLOY_DOMAIN || vars.DEPLOY_DOMAIN }}
           GITHUB_REF_NAME: ${{ inputs.ref }}
-          # build-time flags (baked into the browser bundle)
-          NEXT_PUBLIC_ENCRYPT_API: ${{ vars.ENCRYPT_API || secrets.ENCRYPT_API }}
-          NEXT_PUBLIC_API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY || vars.API_ENCRYPTION_KEY }}
-          NEXT_PUBLIC_ENABLE_LOGS: ${{ vars.ENABLE_LOGS || secrets.ENABLE_LOGS }}
+          # runtime flags → Worker vars (injected into pages at request time)
+          ENCRYPT_API: ${{ vars.ENCRYPT_API || secrets.ENCRYPT_API }}
+          ENABLE_LOGS: ${{ vars.ENABLE_LOGS || secrets.ENABLE_LOGS }}
         run: scripts/deploy.sh "$TARGET"
 
       # Secrets are set AFTER deploy (a plain var of the same name must be gone first) and are idempotent.
@@ -87,8 +100,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
           BACKEND_URL: ${{ secrets.BACKEND_URL || vars.BACKEND_URL }}
           API_ENCRYPTION_KEY: ${{ secrets.API_ENCRYPTION_KEY || vars.API_ENCRYPTION_KEY }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET || vars.SESSION_SECRET }}
         run: |
           printf '%s' "$BACKEND_URL" | npx wrangler secret put BACKEND_URL --env "$TARGET"
+          printf '%s' "$SESSION_SECRET" | npx wrangler secret put SESSION_SECRET --env "$TARGET"
           if [ -n "$API_ENCRYPTION_KEY" ]; then
             printf '%s' "$API_ENCRYPTION_KEY" | npx wrangler secret put API_ENCRYPTION_KEY --env "$TARGET"
           fi

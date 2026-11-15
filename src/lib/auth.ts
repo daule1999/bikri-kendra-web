@@ -7,8 +7,8 @@ export const getUserRole = (): string | null => {
 
 export const isAuthenticated = (): boolean => {
   if (typeof window !== "undefined") {
-    const token = localStorage.getItem("accessToken");
-    return !!token;
+    // Tokens live in HttpOnly cookies; this is the validated client-side session hint.
+    return localStorage.getItem("hasSession") === "1";
   }
   return false;
 };
@@ -23,28 +23,8 @@ export const getUser = () => {
 };
 export const getCurrentUserId = (): number | null => {
   if (typeof window === "undefined") return null;
-  try {
-    const token = localStorage.getItem("accessToken");
-    if (!token) return null;
-    const base64Url = token.split(".")[1];
-    if (!base64Url) return null;
-    let base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    while (base64.length % 4) {
-      base64 += "=";
-    }
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split("")
-        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(""),
-    );
-    const payload = JSON.parse(jsonPayload);
-    return typeof payload.userId === "number" ? payload.userId : null;
-  } catch (e) {
-    console.error("[AUTH] Error decoding userId from token:", e);
-    return null;
-  }
+  const id = Number(localStorage.getItem("userId"));
+  return Number.isFinite(id) && id > 0 ? id : null;
 };
 
 export const hasRole = (requiredRoles: string[]): boolean => {

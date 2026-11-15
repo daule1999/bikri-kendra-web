@@ -14,7 +14,7 @@ Domains are not committed: in CI the `DEPLOY_DOMAIN` environment secret is passe
 Runs the built site plus the real Worker (`/api/*` proxy) on your Mac.
 
 ```bash
-cp .dev.vars.example .dev.vars     # first time only; set BACKEND_URL inside
+cp .dev.vars.example .dev.vars     # first time only; set BACKEND_URL and SESSION_SECRET inside
                                    #   http://localhost:8091         (local Traefik — check `podman ps`)
 
 npm install
@@ -32,14 +32,34 @@ npx wrangler dev --ip 0.0.0.0 --port 8787
 
 ---
 
-## 0b. Environment flags: API encryption and console logging
+## 0b. Runtime config: encryption, console logging, sessions
 
-Set per environment in gitignored env files (copy `.env.example` → `.env.production`, `.env.qa`).
-These files are for local builds/dry runs. In CI the same values come from GitHub Environment
-variables/secrets (section 3) and `scripts/deploy.sh` passes `ENCRYPT_API` to the Worker.
+The site is **built once** and contains no environment-specific values. The Worker injects the
+settings below into every page (`window.__APP_CONFIG__`) from its own vars/secrets, so the very same
+build runs on QA and production and a flag change needs only a redeploy of config, not a rebuild.
 
-| Flag | prod | qa | Effect |
-|---|---|---|---|
+| Setting | prod | qa | Where | Effect |
+|---|---|---|---|---|
+| `ENCRYPT_API` | `true` | `false` | GitHub variable → Worker var | `true`: every /api body is AES-256-GCM encrypted (DevTools shows `{"enc":"…"}`); Worker rejects plain requests |
+| `API_ENCRYPTION_KEY` | long random | — | GitHub secret → Worker secret | Key for the above; served to the page at runtime when encryption is on |
+| `ENABLE_LOGS` | `false` | `true` | GitHub variable → Worker var | `false`: `console.log/debug/info/trace` silenced in the browser (warn/error stay) |
+| `SESSION_SECRET` | long random | long random | GitHub secret → Worker secret | Seals the login session cookies (required) |
+
+```bash
+openssl rand -base64 32      # generate a value for API_ENCRYPTION_KEY / SESSION_SECRET
+```
+
+**Sessions:** login happens at the Worker, which stores the tokens in sealed **HttpOnly** cookies
+(`bk_s0…`). The browser (and any XSS) never sees an access/refresh token; the Worker adds the
+`Authorization` header to backend calls and refreshes expiring tokens itself. Non-GET calls must carry
+`X-Requested-With: bikri` (added automatically) as a CSRF guard. Changing `SESSION_SECRET` signs everyone out.
+
+Notes: payload encryption hides bodies from DevTools/proxies/casual inspection (the page must hold the
+key to encrypt); it does not replace HTTPS or backend auth. URLs/query strings, file uploads and
+non-JSON downloads are not encrypted. Detail pages use `?id=` URLs (`/shops/detail?id=12`); old
+`/shops/12` links redirect automatically.
+
+---|---|---|---|
 | `NEXT_PUBLIC_ENCRYPT_API` | `true` | `false` | `true`: every /api request/response body is AES-256-GCM encrypted (DevTools shows `{"enc":"…"}`); Worker rejects plain requests. `false`: readable. |
 | `NEXT_PUBLIC_API_ENCRYPTION_KEY` | long random string | — | Must equal the Worker secret `API_ENCRYPTION_KEY` |
 | `NEXT_PUBLIC_ENABLE_LOGS` | `false` | `true` | `false`: `console.log/debug/info/trace` are silenced in the browser (warn/error stay) |
@@ -146,6 +166,7 @@ Everything the deploy needs is configured per environment — nothing lives in t
 | Secret | `DEPLOY_DOMAIN` | UAT hostname | prod hostname |
 | Secret | `BACKEND_URL` | UAT backend origin | prod backend origin |
 | Secret | `API_ENCRYPTION_KEY` | empty/unused | long random string |
+| Secret | `SESSION_SECRET` | long random string | different long random string |
 | Variable | `ENCRYPT_API` | `false` | `true` |
 | Variable | `ENABLE_LOGS` | `true` | `false` |
 

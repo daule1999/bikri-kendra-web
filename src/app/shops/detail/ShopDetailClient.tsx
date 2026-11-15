@@ -1,6 +1,6 @@
 'use client';
 
-import { useLegacyParams } from '@/lib/routeParams';
+import { useQueryId } from '@/lib/routeParams';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppLayout from '@/components/layout/AppLayout';
@@ -34,10 +34,9 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 // ── Inner component (needs Suspense for useSearchParams) ─────────────────────
 
 function ShopDetailContent() {
-  const params = useLegacyParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const shopId = Number(params.id);
+  const shopId = Number(useQueryId('id'));
 
   // ── Core data ──────────────────────────────────────────────────────────────
   const [shop, setShop] = useState<any>(null);

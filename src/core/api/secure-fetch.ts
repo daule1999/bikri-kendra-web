@@ -1,17 +1,19 @@
-import { RUNTIME_FLAGS } from '@/core/config/runtime-flags';
+import { getRuntimeConfig } from '@/core/config/runtime-flags';
 import { ENCRYPTED_HEADER, decryptText, encryptText } from '@/core/crypto/payload-crypto';
 
+/** Marks a request as coming from our own pages (checked by the Worker as a CSRF guard). */
+const CSRF_HEADER = 'X-Requested-With';
+const CSRF_VALUE = 'bikri';
+
 /**
- * fetch() for /api calls. When NEXT_PUBLIC_ENCRYPT_API=true the JSON body is
- * sent as {"enc": "<ciphertext>"} and encrypted responses are decrypted back
- * into a normal Response, so callers never see the difference.
- * Every API call in the app (core http client + legacy apiClient) goes through here.
+ * fetch() for /api calls. EVERY API call in the app goes through here (core http client,
+ * legacy apiClient, RTK Query). It
+ *  - adds the CSRF header,
+ *  - when the Worker reports encryptApi=true, sends the JSON body as {"enc": "<ciphertext>"}
+ *    and decrypts encrypted responses back into a normal Response.
+ * Session cookies are sent automatically (same-origin); no token is ever handled here.
  */
 export async function apiFetch(input: string | Request, init: RequestInit = {}): Promise<Response> {
-  const { encryptApi, encryptionKey } = RUNTIME_FLAGS;
-  if (!encryptApi) return fetch(input, init);
-  if (!encryptionKey) throw new Error('NEXT_PUBLIC_API_ENCRYPTION_KEY is not set but API encryption is enabled');
-
   // RTK Query's fetchBaseQuery hands over a Request object: flatten it to url + init.
   if (typeof input !== 'string') {
     const req = input;
@@ -20,6 +22,12 @@ export async function apiFetch(input: string | Request, init: RequestInit = {}):
   }
 
   const headers = new Headers(init.headers);
+  headers.set(CSRF_HEADER, CSRF_VALUE);
+
+  const { encryptApi, encryptionKey } = getRuntimeConfig();
+  if (!encryptApi) return fetch(input, { ...init, headers });
+  if (!encryptionKey) throw new Error('API encryption is enabled but no key was provided by the Worker');
+
   headers.set(ENCRYPTED_HEADER, '1');
   let body = init.body;
   if (typeof body === 'string') {

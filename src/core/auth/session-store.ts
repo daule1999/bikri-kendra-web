@@ -1,20 +1,24 @@
 import type { Session } from './types';
 
 /**
- * localStorage-backed session store with a subscribe API (useSyncExternalStore).
+ * Client-side session HINT (localStorage) with a subscribe API (useSyncExternalStore).
+ * It holds only non-secret identity data — username, role, userId, mustResetPassword — and a
+ * `hasSession` marker. The real credentials are HttpOnly cookies owned by the Worker; the hint
+ * is re-validated against GET /api/session on every page load (AuthProvider).
  *
- * PHASE 1 COMPAT: the session is stored under the same keys EventManagement used
- * (accessToken, refreshToken, username, userRole, mustResetPassword) because the
- * ported pages and the legacy Redux auth slice read them directly. When the last
- * legacy page is refactored, switch to a single namespaced key.
+ * PHASE 1 COMPAT: same keys EventManagement used (username, userRole, mustResetPassword) because
+ * ported pages read them directly. accessToken / refreshToken keys no longer exist.
  */
 const KEYS = {
-  accessToken: 'accessToken',
-  refreshToken: 'refreshToken',
+  hasSession: 'hasSession',
   username: 'username',
   role: 'userRole',
+  userId: 'userId',
   mustResetPassword: 'mustResetPassword',
 } as const;
+
+/** Keys written by earlier versions that stored tokens in the browser. */
+const LEGACY_TOKEN_KEYS = ['accessToken', 'refreshToken'] as const;
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -29,12 +33,11 @@ function read(): Session | null {
   const raw = JSON.stringify(v);
   if (raw === cachedRaw) return cached; // stable snapshot for React
   cachedRaw = raw;
-  cached = v.accessToken && v.username
+  cached = v.hasSession === '1' && v.username
     ? {
-        accessToken: v.accessToken,
-        refreshToken: v.refreshToken ?? '',
         username: v.username,
         role: v.role ?? 'USER',
+        userId: v.userId && !Number.isNaN(Number(v.userId)) ? Number(v.userId) : null,
         mustResetPassword: v.mustResetPassword === 'true',
       }
     : null;
@@ -46,9 +49,9 @@ const emit = () => listeners.forEach((l) => l());
 export const sessionStore = {
   get: read,
   set(session: Session) {
-    localStorage.setItem(KEYS.accessToken, session.accessToken);
-    localStorage.setItem(KEYS.refreshToken, session.refreshToken);
+    localStorage.setItem(KEYS.hasSession, '1');
     localStorage.setItem(KEYS.username, session.username);
+    if (session.userId == null) localStorage.removeItem(KEYS.userId); else localStorage.setItem(KEYS.userId, String(session.userId));
     localStorage.setItem(KEYS.role, String(session.role));
     localStorage.setItem(KEYS.mustResetPassword, String(session.mustResetPassword));
     emit();
@@ -57,8 +60,12 @@ export const sessionStore = {
     const current = read();
     if (current) sessionStore.set({ ...current, ...patch });
   },
+  /** Removes tokens that older versions left in localStorage. */
+  purgeLegacyTokens() {
+    if (isBrowser()) LEGACY_TOKEN_KEYS.forEach((k) => localStorage.removeItem(k));
+  },
   clear() {
-    if (isBrowser()) Object.values(KEYS).forEach((k) => localStorage.removeItem(k));
+    if (isBrowser()) [...Object.values(KEYS), ...LEGACY_TOKEN_KEYS].forEach((k) => localStorage.removeItem(k));
     emit();
   },
   /** Re-read storage and notify (for legacy code that writes localStorage directly). */

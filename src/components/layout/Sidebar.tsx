@@ -1,5 +1,6 @@
 'use client';
 
+import { authService } from '@/core/auth/auth-service';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from '@/lib/theme';
@@ -129,10 +130,7 @@ export default function Sidebar() {
   }, [pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('username');
-    localStorage.removeItem('userRole');
+    authService.logout();   // clears the HttpOnly session cookie (Worker) + local state
     window.location.href = '/';
   };
 

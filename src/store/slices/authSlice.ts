@@ -18,7 +18,8 @@ const getStorageItem = (key: string): string | null => {
 };
 
 const initialState: AuthState = {
-    accessToken: getStorageItem('accessToken'),
+    // The real tokens are HttpOnly cookies; Redux only tracks whether a session exists.
+    accessToken: getStorageItem('hasSession') === '1' ? 'cookie-session' : null,
     username: getStorageItem('username'),
     userRole: getStorageItem('userRole'),
     activeEventId: getStorageItem('active_event_id'),
@@ -50,16 +51,15 @@ export const authSlice = createSlice({
     initialState,
     reducers: {
         // Invoke immediately upon completing your Login Handshake
-        setSession: (state, action: PayloadAction<{ accessToken: string; refreshToken: string; username: string; userRole: string; mustResetPassword?: boolean }>) => {
+        setSession: (state, action: PayloadAction<{ username: string; userRole: string; mustResetPassword?: boolean }>) => {
             syncCore();
-            state.accessToken = action.payload.accessToken;
+            state.accessToken = 'cookie-session';
             state.username = action.payload.username;
             state.userRole = action.payload.userRole;
             // Default to false when not provided (e.g. token refresh paths)
             state.mustResetPassword = action.payload.mustResetPassword ?? false;
 
-            localStorage.setItem('accessToken', action.payload.accessToken);
-            localStorage.setItem('refreshToken', action.payload.refreshToken);
+            localStorage.setItem('hasSession', '1');
             localStorage.setItem('username', action.payload.username);
             localStorage.setItem('userRole', action.payload.userRole);
             // Store as string — localStorage only supports strings
@@ -99,14 +99,7 @@ export const authSlice = createSlice({
         // username/userRole/mustResetPassword/tenant selection untouched.
         // Used by lib/tokenRefresh.ts so a background refresh can never
         // accidentally clobber unrelated session state.
-        setAccessToken: (state, action: PayloadAction<{ accessToken: string; refreshToken?: string }>) => {
-            syncCore();
-            state.accessToken = action.payload.accessToken;
-            localStorage.setItem('accessToken', action.payload.accessToken);
-            if (action.payload.refreshToken) {
-                localStorage.setItem('refreshToken', action.payload.refreshToken);
-            }
-        },
+        // (token renewal is handled server-side by the Worker; nothing to store here)
 
         // Mark password reset as complete (called from security page on success)
         clearMustResetPassword: (state) => {
@@ -136,7 +129,7 @@ export const authSlice = createSlice({
     }
 });
 
-export const { setSession, setAccessToken, setTenantEvent, clearTenantEvent, clearMustResetPassword, purgeSession } = authSlice.actions;
+export const { setSession, setTenantEvent, clearTenantEvent, clearMustResetPassword, purgeSession } = authSlice.actions;
 
 // ─── Highly Optimized Selectors ─────────────────────────────────────────────
 export const selectCurrentTenantId = (state: RootState) => state.auth.activeEventId;
